@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: © 2026 Joseph Maldjian <joseph.maldjian@hyecompany.com>
+# SPDX-FileCopyrightText: © 2026 William Walters <me@luxxy.xyz>
 # SPDX-License-Identifier: Apache-2.0
 
 # npm
@@ -16,3 +17,6 @@ dist
 # secrets
 *.local
 .env
+*.pfx
+/server.crt
+/server.key
