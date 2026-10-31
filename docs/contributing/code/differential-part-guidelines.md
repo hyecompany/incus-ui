@@ -83,7 +83,11 @@ In addition to <code>reuse download</code>, you may find <code><a href="https://
 </details>
 
 
-## 5. Disclose in your Pull Request
+## 5. Update packaging attribution config
+
+Update [`build-attribution.config.json`](/build-attribution.config.json) as described in the [External License Attribution](./external-license-attribution.md) guide, if applicable.
+
+## 6. Disclose in your Pull Request
 
 At the beginning of your Pull Request description, list any differential licenses used in the contribution, e.g.:
 

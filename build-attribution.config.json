@@ -1,0 +1,11 @@
+{
+	"licenses": ["MIT", "OFL-1.1"],
+	"extras": [
+		{
+			"name": "@fontsource-variable/inter",
+			"license": "OFL-1.1",
+			"copyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+			"whenAssetMatches": "assets/inter-*.woff2"
+		}
+	]
+}

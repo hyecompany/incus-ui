@@ -20,7 +20,10 @@ const config = defineConfig({
 		viteReact(),
 		babel({ presets: [reactCompilerPreset()] }),
 	],
-	base: "/ui"
+	base: "/ui",
+	build: {
+		license: { fileName: "npm-licenses.json" },
+	},
 });
 
 export default config;

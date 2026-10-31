@@ -46,3 +46,36 @@ jobs:
         run: |
           node --test tests/github/*.test.cjs
           python -B -m unittest discover -s tests/github
+
+  attribution:
+    name: Build attribution packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check preserveHeaders
+        run: npm run check:attribution-headers
+
+      - name: Build with attribution packaging
+        run: npm run build
+
+      - name: Assert attribution artifact
+        run: npm run check:attribution-artifact
+
+      - name: Package and assert archive
+        run: |
+          tar -czf incus-ui.tar.gz -C dist .
+          node scripts/assert-attribution-artifact.mjs --tar incus-ui.tar.gz

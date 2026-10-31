@@ -33,8 +33,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Assert attribution in dist
+        run: npm run check:attribution-artifact
+
       - name: Package archive
         run: tar -czf incus-ui.tar.gz -C dist .
+
+      - name: Assert attribution in archive
+        run: node scripts/assert-attribution-artifact.mjs --tar incus-ui.tar.gz
 
       - name: Upload archive
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

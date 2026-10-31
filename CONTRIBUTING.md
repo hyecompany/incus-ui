@@ -37,6 +37,8 @@ If you'd like to contribute to the codebase but don't know what to start with, t
 
 If you'd like to make a code contribution that is licensed differently from the rest of the project (the [Apache License, Version 2.0](/LICENSE)), follow the [Differential Code Contribution Part Guidelines](/docs/contributing/code/differential-part-guidelines.md). Follow the [REUSE Specification](https://reuse.software/spec-3.3/) to attribute the appropriate license & copyright information to your contribution.
 
+If you're adding code from an external source, follow the [External License Attribution](/docs/contributing/code/external-license-attribution.md) guide so packaging picks it up correctly.
+
 ### Commits
 #### Message Structure
 Commit messages are to follow the [Conventional Commits v1.0.0 specification](https://www.conventionalcommits.org/en/v1.0.0/).
