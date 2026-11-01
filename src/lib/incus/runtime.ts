@@ -17,6 +17,14 @@ import {
 	instanceCollectionRequest,
 	resolveProject,
 } from "./instances.ts";
+import { instancePath, operationPath } from "./internal/paths.ts";
+import { READ_POLICY, toIncusError, withRetry } from "./internal/request.ts";
+import {
+	isRecord,
+	readBoolean,
+	readNumber,
+	readString,
+} from "./internal/values.ts";
 import {
 	createOperationRegistry,
 	type OperationRegistry,
@@ -46,20 +54,13 @@ export const operationRegistry: OperationRegistry = createOperationRegistry();
 const incusEvents = createEventStream();
 
 function applyOperationEvent(event: IncusEvent): void {
-	if (typeof event.metadata.id !== "string" || event.metadata.id.length === 0) {
-		return;
-	}
-	const id = event.metadata.id;
-	const statusCode =
-		typeof event.metadata.status_code === "number"
-			? event.metadata.status_code
-			: 0;
+	const id = readString(event.metadata, "id");
+	if (!id) return;
 	const next = {
-		status:
-			typeof event.metadata.status === "string" ? event.metadata.status : "",
-		statusCode,
-		err: typeof event.metadata.err === "string" ? event.metadata.err : "",
-		mayCancel: event.metadata.may_cancel === true,
+		status: readString(event.metadata, "status") ?? "",
+		statusCode: readNumber(event.metadata, "status_code") ?? 0,
+		err: readString(event.metadata, "err") ?? "",
+		mayCancel: readBoolean(event.metadata, "may_cancel") === true,
 		monitoring: true,
 	};
 	const existing = operationRegistry.get(id);
@@ -69,7 +70,7 @@ function applyOperationEvent(event: IncusEvent): void {
 	}
 	operationRegistry.register({
 		id,
-		url: `/1.0/operations/${encodeURIComponent(id)}`,
+		url: operationPath(id),
 		initiatedHere: false,
 		...next,
 	});
@@ -210,27 +211,6 @@ export function readInstance<K extends InstanceField>(
 	};
 }
 
-function asRequestError(error: unknown): IncusRequestError {
-	if (error instanceof IncusRequestError) return error;
-	if (error instanceof Error) return new IncusRequestError(error.message, 0, 0);
-	return new IncusRequestError("Incus request failed", 0, 0);
-}
-
-async function requestWithRetry(
-	path: string,
-): Promise<Awaited<ReturnType<typeof incusRequest<unknown>>>> {
-	let last = new IncusRequestError("Incus request failed", 0, 0);
-	for (let attempt = 0; attempt < 3; attempt += 1) {
-		try {
-			return await incusRequest<unknown>(path);
-		} catch (error) {
-			last = asRequestError(error);
-			if (last.status >= 400 && last.status < 500) throw last;
-		}
-	}
-	throw last;
-}
-
 export async function ensureInstances(
 	store: IncusStore,
 	fields: readonly InstanceField[],
@@ -248,7 +228,10 @@ export async function ensureInstances(
 				: store.beginRead(project, store.instanceNames(project));
 		store.markCollectionFetching(project, status, true);
 		try {
-			const response = await requestWithRetry(plan.path);
+			const response = await withRetry(
+				() => incusRequest<unknown>(plan.path),
+				READ_POLICY,
+			);
 			if (!Array.isArray(response.metadata)) {
 				throw new IncusRequestError(
 					"Instance collection metadata was not a list",
@@ -265,7 +248,7 @@ export async function ensureInstances(
 			if (!applied) store.markCollectionFetching(project, status, false);
 			else incusEvents.noteReconciled();
 		} catch (error) {
-			const failure = asRequestError(error);
+			const failure = toIncusError(error);
 			store.markCollectionFetching(project, status, false);
 			store.setCollectionError(project, status, {
 				message: failure.message,
@@ -286,19 +269,15 @@ export async function ensureInstance(
 	if (instanceErrors.has(key)) return;
 	const current = readInstance(store, name, fields, query);
 	if (current.fresh) return;
-	const path =
-		project === "default"
-			? `/1.0/instances/${encodeURIComponent(name)}`
-			: `/1.0/instances/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`;
+	const path = instancePath(project, name);
 	await store.inflight(`instance:${path}`, async () => {
 		const token = store.beginRead(project, [name]);
 		try {
-			const response = await requestWithRetry(path);
-			if (
-				typeof response.metadata !== "object" ||
-				response.metadata === null ||
-				Array.isArray(response.metadata)
-			) {
+			const response = await withRetry(
+				() => incusRequest<unknown>(path),
+				READ_POLICY,
+			);
+			if (!isRecord(response.metadata)) {
 				throw new IncusRequestError(
 					"Instance metadata was not an object",
 					0,
@@ -315,7 +294,7 @@ export async function ensureInstance(
 				notifyRuntime();
 			}
 		} catch (error) {
-			const failure = asRequestError(error);
+			const failure = toIncusError(error);
 			instanceErrors.set(key, {
 				message: failure.message,
 				status: failure.status,

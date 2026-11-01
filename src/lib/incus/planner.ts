@@ -9,6 +9,7 @@ import {
 	instanceCollectionRequest,
 	instanceRepresentation,
 } from "./instances.ts";
+import { instancePath } from "./internal/paths.ts";
 import type { IncusStore } from "./store.ts";
 
 export type PlanReason = "incomplete" | "stale" | "fields";
@@ -46,12 +47,6 @@ function isLiteralStatusFilter(value: string): boolean {
 
 function statusEquals(left: string, right: string): boolean {
 	return left.toLowerCase() === right.toLowerCase();
-}
-
-function memberUrl(project: string, name: string): string {
-	const path = `/1.0/instances/${encodeURIComponent(name)}`;
-	if (project === "default") return path;
-	return `${path}?project=${encodeURIComponent(project)}`;
 }
 
 function collectionSatisfies(
@@ -101,7 +96,7 @@ function materializeStatusFilter(
 		representation: 0,
 		entries: matched.map((stored) => {
 			const identity = collectionMemberIdentity(project, stored);
-			return memberUrl(identity.project, identity.name);
+			return instancePath(identity.project, identity.name);
 		}),
 	});
 }

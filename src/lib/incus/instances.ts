@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: © 2026 William Walters <me@luxxy.xyz>
 // SPDX-License-Identifier: Apache-2.0
 
-import { incusPath, incusRequest } from "./transport.ts";
+import { instanceCollectionPath, instancePath } from "./internal/paths.ts";
+import { isRecord, readNumber, readString } from "./internal/values.ts";
+import { incusRequest } from "./transport.ts";
 
 export type Instance = {
 	name: string;
@@ -67,10 +69,10 @@ export function instanceCollectionRequest(
 		? `status eq ${filterLiteral(query.status)}`
 		: undefined;
 	return {
-		path: incusPath("/1.0/instances", {
-			project: allProjects || project === "default" ? undefined : project,
-			"all-projects": allProjects ? "true" : undefined,
-			recursion: representation === 0 ? undefined : "1",
+		path: instanceCollectionPath({
+			project,
+			allProjects,
+			representation,
 			filter,
 		}),
 		project,
@@ -127,24 +129,16 @@ export function instanceIdentityFromUrl(url: string): {
 	};
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stringField(value: unknown): string {
-	return typeof value === "string" ? value : "";
-}
-
 export function instanceFromObject(value: Record<string, unknown>): Instance {
 	return {
-		name: stringField(value.name),
-		status: stringField(value.status),
-		statusCode: typeof value.status_code === "number" ? value.status_code : 0,
-		location: stringField(value.location),
-		type: stringField(value.type),
-		project: stringField(value.project),
-		architecture: stringField(value.architecture),
-		description: stringField(value.description),
+		name: readString(value, "name") ?? "",
+		status: readString(value, "status") ?? "",
+		statusCode: readNumber(value, "status_code") ?? 0,
+		location: readString(value, "location") ?? "",
+		type: readString(value, "type") ?? "",
+		project: readString(value, "project") ?? "",
+		architecture: readString(value, "architecture") ?? "",
+		description: readString(value, "description") ?? "",
 	};
 }
 
@@ -191,9 +185,7 @@ export function instanceRequest(
 ): { path: string; project: string } {
 	const project = resolveProject(query.project);
 	return {
-		path: incusPath(`/1.0/instances/${encodeURIComponent(name)}`, {
-			project: project === "default" ? undefined : project,
-		}),
+		path: instancePath(project, name),
 		project,
 	};
 }

@@ -1,8 +1,15 @@
 // SPDX-FileCopyrightText: © 2026 William Walters <me@luxxy.xyz>
 // SPDX-License-Identifier: Apache-2.0
 
+import { projectPath } from "./internal/paths.ts";
+import { READ_POLICY, toIncusError, withRetry } from "./internal/request.ts";
+import { isRecord, readString } from "./internal/values.ts";
 import type { DataResult } from "./result.ts";
-import { IncusRequestError, incusPath, incusRequest } from "./transport.ts";
+import {
+	type IncusRequestError,
+	incusPath,
+	incusRequest,
+} from "./transport.ts";
 
 export type Project = { name: string; description: string };
 export type ProjectField = keyof Project;
@@ -26,18 +33,10 @@ export function projectIdentityFromUrl(url: string): { name: string } {
 	return { name };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stringField(value: unknown): string {
-	return typeof value === "string" ? value : "";
-}
-
 export function projectFromObject(record: Record<string, unknown>): Project {
 	return {
-		name: stringField(record.name),
-		description: stringField(record.description),
+		name: readString(record, "name") ?? "",
+		description: readString(record, "description") ?? "",
 	};
 }
 
@@ -75,27 +74,6 @@ export function subscribeProjects(listener: () => void): () => void {
 
 export function projectsSnapshot(): number {
 	return cacheVersion;
-}
-
-function asRequestError(error: unknown): IncusRequestError {
-	if (error instanceof IncusRequestError) return error;
-	if (error instanceof Error) return new IncusRequestError(error.message, 0, 0);
-	return new IncusRequestError("Incus request failed", 0, 0);
-}
-
-async function requestWithRetry(
-	path: string,
-): Promise<Awaited<ReturnType<typeof incusRequest<unknown>>>> {
-	let last = new IncusRequestError("Incus request failed", 0, 0);
-	for (let attempt = 0; attempt < 3; attempt += 1) {
-		try {
-			return await incusRequest<unknown>(path);
-		} catch (error) {
-			last = asRequestError(error);
-			if (last.status >= 400 && last.status < 500) throw last;
-		}
-	}
-	throw last;
 }
 
 function recomputeDescriptionsComplete(): void {
@@ -180,7 +158,10 @@ async function ensureCollectionPath(
 		collectionFetching = true;
 		notify();
 		try {
-			const response = await requestWithRetry(path);
+			const response = await withRetry(
+				() => incusRequest<unknown>(path),
+				READ_POLICY,
+			);
 			if (representation === 0) {
 				applyNameOnlyCollection(response.metadata);
 			} else {
@@ -188,7 +169,7 @@ async function ensureCollectionPath(
 			}
 			pathFailures.delete(path);
 		} catch (error) {
-			const incusError = asRequestError(error);
+			const incusError = toIncusError(error);
 			collectionError = incusError;
 			markCollectionFailed(representation);
 			if (incusError.status >= 400 && incusError.status < 500) {
@@ -275,10 +256,6 @@ export async function ensureProjects(
 	await ensureCollectionPath(request.path, request.representation);
 }
 
-function projectPath(name: string): string {
-	return `/1.0/projects/${encodeURIComponent(name)}`;
-}
-
 async function ensureProjectFetch(name: string): Promise<void> {
 	if (projectFailures.has(name)) return;
 
@@ -292,7 +269,10 @@ async function ensureProjectFetch(name: string): Promise<void> {
 	const promise = (async () => {
 		notify();
 		try {
-			const response = await requestWithRetry(path);
+			const response = await withRetry(
+				() => incusRequest<unknown>(path),
+				READ_POLICY,
+			);
 			if (!isRecord(response.metadata)) {
 				throw new Error("Project metadata was not an object");
 			}
@@ -308,7 +288,7 @@ async function ensureProjectFetch(name: string): Promise<void> {
 			projectFailures.delete(name);
 			recomputeDescriptionsComplete();
 		} catch (error) {
-			const incusError = asRequestError(error);
+			const incusError = toIncusError(error);
 			projectErrors.set(name, incusError);
 			if (incusError.status >= 400 && incusError.status < 500) {
 				projectFailures.set(name, incusError);

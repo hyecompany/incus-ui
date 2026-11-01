@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: © 2026 William Walters <me@luxxy.xyz>
 // SPDX-License-Identifier: Apache-2.0
 
+import { isRecord } from "./internal/values.ts";
 import type { IncusStore, InstanceSnapshot } from "./store.ts";
 
 export const INSTANCE_PERSIST_FIELDS = [
@@ -376,10 +377,6 @@ function finiteStatusCode(record: Record<string, unknown>): number | undefined {
 		return record.status_code;
 	}
 	return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function instanceKey(record: {

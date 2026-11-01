@@ -8,6 +8,7 @@ import {
 	instanceIdentityFromUrl,
 	ordinaryInstanceFields,
 } from "./instances.ts";
+import { isRecord } from "./internal/values.ts";
 
 export type FieldObservation<T> = {
 	value: T;
@@ -135,10 +136,6 @@ function resourceKey(project: string, name: string): string {
 
 function collectionKey(project: string, status: string | null): string {
 	return status === null ? `all\0${project}` : `status\0${project}\0${status}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function stringObservation(

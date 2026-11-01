@@ -1,6 +1,13 @@
 // SPDX-FileCopyrightText: © 2026 William Walters <me@luxxy.xyz>
 // SPDX-License-Identifier: Apache-2.0
 
+import { operationPath } from "./internal/paths.ts";
+import {
+	isRecord,
+	readBoolean,
+	readNumber,
+	readString,
+} from "./internal/values.ts";
 import {
 	IncusRequestError,
 	type IncusResult,
@@ -27,29 +34,22 @@ export type OperationRegistry = {
 	clear(): void;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function readOperation(metadata: unknown): {
 	status: string;
 	statusCode: number;
 	err: string;
 	mayCancel: boolean;
 } {
-	if (!isRecord(metadata) || typeof metadata.status_code !== "number") {
+	const statusCode = readNumber(metadata, "status_code");
+	if (!isRecord(metadata) || statusCode === undefined) {
 		throw new Error("Operation response did not include a status code");
 	}
 	return {
-		status: typeof metadata.status === "string" ? metadata.status : "",
-		statusCode: metadata.status_code,
-		err: typeof metadata.err === "string" ? metadata.err : "",
-		mayCancel: metadata.may_cancel === true,
+		status: readString(metadata, "status") ?? "",
+		statusCode,
+		err: readString(metadata, "err") ?? "",
+		mayCancel: readBoolean(metadata, "may_cancel") === true,
 	};
-}
-
-function operationPath(id: string): string {
-	return `/1.0/operations/${encodeURIComponent(id)}`;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

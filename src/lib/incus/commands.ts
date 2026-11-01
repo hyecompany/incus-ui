@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: © 2026 William Walters <me@luxxy.xyz>
 // SPDX-License-Identifier: Apache-2.0
 
+import { instancePath } from "./internal/paths.ts";
+import { readBoolean, readNumber, readString } from "./internal/values.ts";
 import {
 	cancelOperation,
 	type OperationRecord,
 	type OperationRegistry,
 	waitForOperation,
 } from "./operations.ts";
-import { type IncusResult, incusPath, incusRequest } from "./transport.ts";
+import { type IncusResult, incusRequest } from "./transport.ts";
 
 export type InstanceStateAction =
 	| "start"
@@ -27,20 +29,6 @@ export type InstanceStateChange = {
 	accepted: true;
 	operation: TrackedOperation;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function instanceUrl(
-	name: string,
-	project: string | undefined,
-	suffix = "",
-): string {
-	const path = `/1.0/instances/${encodeURIComponent(name)}${suffix}`;
-	if (!project || project === "default") return path;
-	return incusPath(path, { project });
-}
 
 function operationIdentity(
 	operation: string,
@@ -68,14 +56,15 @@ function operationIdentity(
 function seededOperation(
 	metadata: unknown,
 ): Pick<OperationRecord, "status" | "statusCode" | "err" | "mayCancel"> {
-	if (!isRecord(metadata) || typeof metadata.status_code !== "number") {
+	const statusCode = readNumber(metadata, "status_code");
+	if (statusCode === undefined) {
 		return { status: "", statusCode: 0, err: "", mayCancel: false };
 	}
 	return {
-		status: typeof metadata.status === "string" ? metadata.status : "",
-		statusCode: metadata.status_code,
-		err: typeof metadata.err === "string" ? metadata.err : "",
-		mayCancel: metadata.may_cancel === true,
+		status: readString(metadata, "status") ?? "",
+		statusCode,
+		err: readString(metadata, "err") ?? "",
+		mayCancel: readBoolean(metadata, "may_cancel") === true,
 	};
 }
 
@@ -90,7 +79,7 @@ export async function changeInstanceState(
 ): Promise<InstanceStateChange> {
 	const request = options.request ?? incusRequest;
 	const result = await request<unknown>(
-		instanceUrl(name, options.project, "/state"),
+		instancePath(options.project || "default", name, "/state"),
 		{
 			method: "POST",
 			body: { action, timeout: 30, force: false, stateful: false },
@@ -132,7 +121,7 @@ export async function putInstance(
 	options: { project?: string; request?: typeof incusRequest } = {},
 ): Promise<IncusResult<unknown>> {
 	const request = options.request ?? incusRequest;
-	return request<unknown>(instanceUrl(name, options.project), {
+	return request<unknown>(instancePath(options.project || "default", name), {
 		method: "PUT",
 		body,
 		headers: { "If-Match": etag },
