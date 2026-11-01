@@ -3,7 +3,7 @@
 
 import { IconChevronRight } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 /** Vertical list of large options (sign-in methods, flow choices). */
 export function ChoiceList({
@@ -22,11 +22,10 @@ export function ChoiceList({
 }
 
 const itemClass =
-	"group flex w-full cursor-pointer items-center gap-4 rounded-xl border bg-background/40 p-4 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+	"group flex w-full cursor-pointer items-center gap-4 rounded-lg border px-4 py-3 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
 
 /** An option that navigates (`to`) or runs `onSelect`. */
 export function ChoiceItem({
-	icon: Icon,
 	title,
 	description,
 	to,
@@ -34,7 +33,6 @@ export function ChoiceItem({
 	disabled,
 	badge,
 }: {
-	icon?: ComponentType<{ className?: string }>;
 	title: ReactNode;
 	description?: ReactNode;
 	to?: string;
@@ -45,11 +43,6 @@ export function ChoiceItem({
 }) {
 	const content = (
 		<>
-			{Icon && (
-				<span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-					<Icon className="size-5" />
-				</span>
-			)}
 			<span className="flex min-w-0 flex-1 flex-col gap-0.5">
 				<span className="flex items-center gap-2 text-sm font-medium">
 					{title}

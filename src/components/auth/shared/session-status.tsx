@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IconLoader2, IconPlugConnectedX } from "@tabler/icons-react";
+import { IconLoader2 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useSessionStore } from "@/components/providers/session-provider";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ export function SessionError({ error }: { error: IncusApiError }) {
 				role="alert"
 				className="flex max-w-md flex-col items-center gap-3 text-center"
 			>
-				<IconPlugConnectedX className="size-8 text-muted-foreground" />
 				<h1 className="text-lg font-semibold">Could not reach Incus</h1>
 				<p className="text-sm text-muted-foreground">
 					{error.kind === "network"

@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IconCircleCheck, IconHelpCircle } from "@tabler/icons-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	AnotherMethodLink,
@@ -39,14 +38,12 @@ function ExistingCertificate() {
 		>
 			<ChoiceList label="Certificate status">
 				<ChoiceItem
-					icon={IconCircleCheck}
 					title="Yes, it's imported and I chose it"
 					description="Next, the server is asked to trust the certificate your browser presents."
 					onSelect={alreadySelected}
 					disabled={checking}
 				/>
 				<ChoiceItem
-					icon={IconHelpCircle}
 					title="No, or I'm not sure"
 					description="We'll show you how to install it in your browser or use it with the incus command."
 					onSelect={() =>

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IconArrowLeft, IconBrowser, IconTerminal2 } from "@tabler/icons-react";
+import { IconArrowLeft } from "@tabler/icons-react";
 import {
 	createFileRoute,
 	Link,
@@ -94,7 +94,6 @@ function GeneralAuthentication() {
 		>
 			<ChoiceList label="Ways to sign in">
 				<ChoiceItem
-					icon={IconTerminal2}
 					title="Sign in with CLI"
 					description="Two commands, no browser setup. Needs the incus command installed on this computer."
 					badge="Quickest"
@@ -106,7 +105,6 @@ function GeneralAuthentication() {
 					}
 				/>
 				<ChoiceItem
-					icon={IconBrowser}
 					title="Continue in browser"
 					description="Install the certificate in this browser, then restart it. Works without the incus command."
 					onSelect={() =>
