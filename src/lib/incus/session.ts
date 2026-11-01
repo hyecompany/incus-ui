@@ -5,6 +5,13 @@ import { IncusApiError, incusRequest } from "./client.ts";
 
 export interface IncusSession {
 	trusted: boolean;
+	/** `auth_methods` advertised by the server (e.g. "tls", "oidc"). */
+	authMethods: readonly string[];
+	/** `user.ui.*` server config; readable before authentication. */
+	uiConfig: Readonly<Record<string, string>>;
+	/** How the current client authenticated (tls, oidc, unix...), or null. */
+	authUserMethod: string | null;
+	authUserName: string | null;
 	/** `<deploymentId>/<method>:<user>`, or null when not trusted. */
 	sessionKey: string | null;
 	/** The server's certificate fingerprint (or name). Null when not trusted. */
@@ -13,9 +20,44 @@ export interface IncusSession {
 
 const UNTRUSTED: IncusSession = {
 	trusted: false,
+	authMethods: [],
+	uiConfig: {},
+	authUserMethod: null,
+	authUserName: null,
 	sessionKey: null,
 	deploymentId: null,
 };
+
+function readStringMap(value: unknown): Record<string, string> {
+	if (!isRecord(value)) return {};
+	const out: Record<string, string> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		if (key.startsWith("user.ui.") && typeof entry === "string")
+			out[key] = entry;
+	}
+	return out;
+}
+
+/** Sign-in screen options from `user.ui.*` (`ui.*` once Incus supports it). */
+export interface AuthScreenOptions {
+	/** `user.ui.auth.offer_cli`; default true. */
+	offerCli: boolean;
+	/** `user.ui.auth.auto_init_oidc`, or legacy `user.ui.sso_only`; default false. */
+	autoInitOidc: boolean;
+}
+
+export function authScreenOptions(
+	uiConfig: Readonly<Record<string, string>>,
+): AuthScreenOptions {
+	const flag = (key: string) => uiConfig[key]?.trim().toLowerCase();
+	return {
+		offerCli: flag("user.ui.auth.offer_cli") !== "false",
+		autoInitOidc:
+			flag("user.ui.auth.auto_init_oidc") === "true" ||
+			(flag("user.ui.auth.auto_init_oidc") === undefined &&
+				flag("user.ui.sso_only") === "true"),
+	};
+}
 
 function readString(
 	record: Record<string, unknown>,
@@ -31,8 +73,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Reads the session from `GET /1.0` metadata. */
 export function parseSession(metadata: unknown): IncusSession {
-	if (!isRecord(metadata) || metadata.auth !== "trusted") {
+	if (!isRecord(metadata)) {
 		return UNTRUSTED;
+	}
+	const authMethods = Array.isArray(metadata.auth_methods)
+		? metadata.auth_methods.filter((m): m is string => typeof m === "string")
+		: [];
+	const uiConfig = readStringMap(metadata.config);
+	if (metadata.auth !== "trusted") {
+		return { ...UNTRUSTED, authMethods, uiConfig };
 	}
 	const method =
 		readString(metadata, "auth_user_method") ??
@@ -48,6 +97,10 @@ export function parseSession(metadata: unknown): IncusSession {
 		"unknown";
 	return {
 		trusted: true,
+		authMethods,
+		uiConfig,
+		authUserMethod: method,
+		authUserName: user,
 		sessionKey: `${deploymentId}/${method}:${user}`,
 		deploymentId,
 	};

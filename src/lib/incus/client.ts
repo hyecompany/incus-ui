@@ -58,25 +58,52 @@ export function buildIncusUrl(path: string, query?: IncusQuery): string {
 	return `${url.pathname}${url.search}`;
 }
 
-/** GETs an Incus API path and returns the envelope `metadata`. */
+export type IncusMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+type AuthFailureListener = (error: IncusApiError, path: string) => void;
+const authFailureListeners = new Set<AuthFailureListener>();
+
+/** Called when a request is refused with 401/403 (session may have ended). */
+export function onAuthFailure(listener: AuthFailureListener): () => void {
+	authFailureListeners.add(listener);
+	return () => {
+		authFailureListeners.delete(listener);
+	};
+}
+
+/** Sends a request to an Incus API path and returns the envelope `metadata`. */
 export async function incusRequest<T>(
 	path: string,
 	opts: {
+		method?: IncusMethod;
 		query?: IncusQuery;
+		/** JSON request body. */
+		body?: unknown;
+		headers?: Record<string, string>;
 		signal?: AbortSignal;
 		fetchImpl?: typeof fetch;
 	} = {},
 ): Promise<T> {
-	const { query, signal, fetchImpl = fetch } = opts;
-
-	let response: Response;
-	try {
-		response = await fetchImpl(buildIncusUrl(path, query), {
-			method: "GET",
-			headers: { Accept: "application/json" },
+	const { query, signal, fetchImpl = fetch, method = "GET" } = opts;
+	const headers: Record<string, string> = {
+		Accept: "application/json",
+		...opts.headers,
+	};
+	if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+	const send = () =>
+		fetchImpl(buildIncusUrl(path, query), {
+			method,
+			headers,
+			body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
 			credentials: "same-origin",
 			signal,
 		});
+
+	let response: Response;
+	try {
+		response = await send();
+		// `incus webui` answers 305 after refreshing an expired OIDC token.
+		if (response.status === 305) response = await send();
 	} catch (cause) {
 		throw transportError(cause);
 	}
@@ -91,7 +118,11 @@ export async function incusRequest<T>(
 	const body = parseJson(text);
 
 	if (!response.ok) {
-		throw httpError(response.status, body);
+		const error = httpError(response.status, body);
+		if (error.kind === "auth" || error.kind === "forbidden") {
+			for (const listener of [...authFailureListeners]) listener(error, path);
+		}
+		throw error;
 	}
 
 	if (!isEnvelope(body)) {
@@ -108,7 +139,7 @@ export async function incusRequest<T>(
 		throw httpError(body.status_code ?? response.status, body);
 	}
 
-	if (body.type !== "sync") {
+	if (body.type !== "sync" && body.type !== "async") {
 		throw new IncusApiError(
 			"malformed",
 			`Unsupported Incus envelope type "${body.type}"`,

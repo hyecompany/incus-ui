@@ -3,7 +3,11 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createSessionStore, parseSession } from "../../src/lib/incus/session.ts";
+import {
+	authScreenOptions,
+	createSessionStore,
+	parseSession,
+} from "../../src/lib/incus/session.ts";
 
 describe("parseSession", () => {
 	it("derives the session key from the real /1.0 fields", () => {
@@ -12,9 +16,19 @@ describe("parseSession", () => {
 				auth: "trusted",
 				auth_user_method: "tls",
 				auth_user_name: "abc123",
+				auth_methods: ["tls", "oidc"],
+				config: { "user.ui.auth.offer_cli": "false", "core.https_address": ":8443" },
 				environment: { certificate_fingerprint: "fp1", server_name: "srv" },
 			}),
-			{ trusted: true, sessionKey: "fp1/tls:abc123", deploymentId: "fp1" },
+			{
+				trusted: true,
+				authMethods: ["tls", "oidc"],
+				uiConfig: { "user.ui.auth.offer_cli": "false" },
+				authUserMethod: "tls",
+				authUserName: "abc123",
+				sessionKey: "fp1/tls:abc123",
+				deploymentId: "fp1",
+			},
 		);
 	});
 
@@ -39,11 +53,23 @@ describe("parseSession", () => {
 		assert.notEqual(parseSession(meta("a")).sessionKey, parseSession(meta("b")).sessionKey);
 	});
 
-	it("is untrusted with no key for anything other than trusted", () => {
-		const untrusted = { trusted: false, sessionKey: null, deploymentId: null };
+	it("is untrusted with no key, but keeps auth methods and user.ui.* config", () => {
+		const untrusted = {
+			trusted: false,
+			authMethods: [],
+			uiConfig: {},
+			authUserMethod: null,
+			authUserName: null,
+			sessionKey: null,
+			deploymentId: null,
+		};
 		assert.deepEqual(
-			parseSession({ auth: "untrusted", auth_methods: ["tls"] }),
-			untrusted,
+			parseSession({
+				auth: "untrusted",
+				auth_methods: ["tls", "oidc"],
+				config: { "user.ui.sso_only": "true" },
+			}),
+			{ ...untrusted, authMethods: ["tls", "oidc"], uiConfig: { "user.ui.sso_only": "true" } },
 		);
 		assert.deepEqual(parseSession(null), untrusted);
 		assert.deepEqual(parseSession("trusted"), untrusted);
@@ -53,6 +79,23 @@ describe("parseSession", () => {
 		const session = parseSession({ auth: "trusted" });
 		assert.equal(session.trusted, true);
 		assert.equal(session.sessionKey, "unknown/unknown:unknown");
+	});
+});
+
+describe("authScreenOptions", () => {
+	it("defaults to offering the CLI and not auto-starting OIDC", () => {
+		assert.deepEqual(authScreenOptions({}), { offerCli: true, autoInitOidc: false });
+	});
+
+	it("reads user.ui.auth.* and the legacy user.ui.sso_only alias", () => {
+		assert.equal(authScreenOptions({ "user.ui.auth.offer_cli": "false" }).offerCli, false);
+		assert.equal(authScreenOptions({ "user.ui.auth.auto_init_oidc": "true" }).autoInitOidc, true);
+		assert.equal(authScreenOptions({ "user.ui.sso_only": "TRUE" }).autoInitOidc, true);
+		assert.equal(
+			authScreenOptions({ "user.ui.auth.auto_init_oidc": "false", "user.ui.sso_only": "true" }).autoInitOidc,
+			false,
+			"the new key wins over the legacy alias",
+		);
 	});
 });
 

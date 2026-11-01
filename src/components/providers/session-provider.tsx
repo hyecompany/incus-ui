@@ -9,6 +9,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
+import { onAuthFailure } from "@/lib/incus/client";
 import {
 	createSessionStore,
 	type SessionState,
@@ -25,7 +26,20 @@ export function IncusSessionProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		const next = createSessionStore();
 		setStore(next);
-		return () => next.dispose();
+		// A refused request may mean the session ended; re-check /1.0 (debounced).
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		const stop = onAuthFailure((_error, path) => {
+			if (path === "/1.0" || timer) return;
+			timer = setTimeout(() => {
+				timer = null;
+				void next.refresh();
+			}, 500);
+		});
+		return () => {
+			stop();
+			if (timer) clearTimeout(timer);
+			next.dispose();
+		};
 	}, []);
 	return (
 		<SessionContext.Provider value={store}>{children}</SessionContext.Provider>
@@ -33,6 +47,11 @@ export function IncusSessionProvider({ children }: { children: ReactNode }) {
 }
 
 const noop = () => () => undefined;
+
+/** The session store, for re-checking /1.0 after signing in or out. */
+export function useSessionStore(): SessionStore | null {
+	return useContext(SessionContext);
+}
 
 export function useIncusSession(): SessionState {
 	const store = useContext(SessionContext);

@@ -7,6 +7,7 @@ import {
 	buildIncusUrl,
 	IncusApiError,
 	incusRequest,
+	onAuthFailure,
 } from "../../src/lib/incus/client.ts";
 
 interface Recorded {
@@ -185,12 +186,56 @@ describe("incusRequest", () => {
 	});
 
 	it("maps an unsupported envelope type to malformed", async () => {
-		const body = JSON.stringify({ type: "async", status_code: 202, metadata: {} });
+		const body = JSON.stringify({ type: "weird", status_code: 200, metadata: {} });
 		const { fetchImpl } = respondWith(new Response(body, { status: 200 }));
 
 		const error = await captureError(incusRequest("/1.0", { fetchImpl }));
 
 		assert.equal(error.kind, "malformed");
+	});
+
+	it("sends method, JSON body and extra headers", async () => {
+		const seen: RequestInit[] = [];
+		const fetchImpl = (async (_url: string, init: RequestInit) => {
+			seen.push(init);
+			return new Response(JSON.stringify({ type: "sync", status_code: 200, metadata: {} }), { status: 200 });
+		}) as unknown as typeof fetch;
+		await incusRequest("/1.0/certificates", {
+			method: "POST",
+			body: { trust_token: "t" },
+			headers: { Authorization: "Bearer x" },
+			fetchImpl,
+		});
+		assert.equal(seen[0]?.method, "POST");
+		assert.equal(seen[0]?.body, '{"trust_token":"t"}');
+		const headers = seen[0]?.headers as Record<string, string>;
+		assert.equal(headers.Authorization, "Bearer x");
+		assert.equal(headers["Content-Type"], "application/json");
+	});
+
+	it("retries once on 305 (incus webui OIDC refresh) and accepts async envelopes", async () => {
+		let calls = 0;
+		const fetchImpl = (async () => {
+			calls += 1;
+			return calls === 1
+				? new Response("", { status: 305 })
+				: new Response(JSON.stringify({ type: "async", status_code: 202, metadata: { id: "op" } }), { status: 202 });
+		}) as unknown as typeof fetch;
+		const metadata = await incusRequest<{ id: string }>("/1.0/instances", { method: "POST", fetchImpl });
+		assert.equal(calls, 2);
+		assert.equal(metadata.id, "op");
+	});
+
+	it("notifies auth-failure listeners on 401/403 only", async () => {
+		const seen: string[] = [];
+		const stop = onAuthFailure((error, path) => seen.push(`${error.kind}:${path}`));
+		const reply = (status: number) =>
+			(async () => new Response(JSON.stringify({ type: "error", error_code: status, error: "x" }), { status })) as unknown as typeof fetch;
+		await captureError(incusRequest("/1.0/instances", { fetchImpl: reply(403) }));
+		await captureError(incusRequest("/1.0/instances", { fetchImpl: reply(500) }));
+		stop();
+		await captureError(incusRequest("/1.0/instances", { fetchImpl: reply(401) }));
+		assert.deepEqual(seen, ["forbidden:/1.0/instances"]);
 	});
 
 	it("maps a fetch TypeError to network", async () => {
