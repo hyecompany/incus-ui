@@ -4,11 +4,6 @@
 import type { IncusApiError } from "../client.ts";
 import type { DataCore, Need, ResourceDefinition } from "./core.ts";
 
-/*
- * Consumer-facing result types and subscriptions, shared by every resource
- * definition so hooks and imperative code see the same contract.
- */
-
 /** A collection result. `data` only ever contains the selected fields. */
 export interface CollectionResult<T> {
 	/** Members whose selected fields are known; undefined if membership is unknown. */

@@ -3,10 +3,7 @@
 
 import { IncusApiError, incusRequest } from "./client.ts";
 
-/**
- * Project fields the UI can select. `used_by` (relationships to other
- * resources) is intentionally not exposed until dependencies are in scope.
- */
+/** Project fields the UI can select. */
 export interface Project {
 	name: string;
 	description: string;
@@ -29,10 +26,7 @@ export interface ProjectDetails {
 
 type Fetch = { signal?: AbortSignal; fetchImpl?: typeof fetch };
 
-/**
- * `GET /1.0/projects` (recursion=0): project URLs. Establishes complete
- * membership for this access context; Incus filters by the caller's access.
- */
+/** `GET /1.0/projects` (recursion=0): project URLs. */
 export async function fetchProjectNames(opts: Fetch = {}): Promise<string[]> {
 	const raw = await incusRequest<unknown>("/1.0/projects", opts);
 	if (!Array.isArray(raw) || !raw.every((url) => typeof url === "string")) {
@@ -55,10 +49,7 @@ export async function fetchProjectObjects(
 	return raw.map((item, index) => parseProjectObject(item, `index ${index}`));
 }
 
-/**
- * `GET /1.0/projects/{name}`: one project's details, or null when Incus says
- * it does not exist (or is not visible to this caller).
- */
+/** `GET /1.0/projects/{name}`; null when it does not exist. */
 export async function fetchProject(
 	name: string,
 	opts: Fetch = {},
@@ -86,10 +77,7 @@ export function projectNameFromUrl(url: string): string {
 	return decodeURIComponent(path.slice(prefix.length));
 }
 
-/**
- * Validates one project object. `config` is an authoritative map: the caller
- * replaces it as a whole, so keys missing here are keys that were removed.
- */
+/** Validates one project object. */
 export function parseProjectObject(
 	value: unknown,
 	at: string,

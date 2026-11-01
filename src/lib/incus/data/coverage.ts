@@ -33,11 +33,7 @@ export function coverageFor(
 	}
 }
 
-/**
- * Feeds lifecycle events across all projects into the core, and keeps its
- * coverage in step with the shared connection. Selecting a project in the
- * header does not affect this subscription.
- */
+/** Feeds lifecycle events into the core and tracks event coverage. */
 export function connectEvents(core: DataCore, events: EventSource): () => void {
 	const apply = (status: ScopeStatus) => {
 		if (!isSameScope(status.scope, ALL_PROJECTS)) return;

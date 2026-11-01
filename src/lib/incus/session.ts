@@ -5,10 +5,7 @@ import { IncusApiError, incusRequest } from "./client.ts";
 
 export interface IncusSession {
 	trusted: boolean;
-	/**
-	 * Identifies the authenticated session on this deployment:
-	 * `<deploymentId>/<method>:<user>`. Null when not trusted.
-	 */
+	/** `<deploymentId>/<method>:<user>`, or null when not trusted. */
 	sessionKey: string | null;
 	/** The server's certificate fingerprint (or name). Null when not trusted. */
 	deploymentId: string | null;
@@ -32,11 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reads the session from `GET /1.0` metadata. Identity fields that are missing
- * fall back to "unknown", so two trusted sessions are never confused with
- * each other by accident.
- */
+/** Reads the session from `GET /1.0` metadata. */
 export function parseSession(metadata: unknown): IncusSession {
 	if (!isRecord(metadata) || metadata.auth !== "trusted") {
 		return UNTRUSTED;
@@ -60,10 +53,7 @@ export function parseSession(metadata: unknown): IncusSession {
 	};
 }
 
-/**
- * Fetches the current session. Auth and forbidden responses map to untrusted.
- * Other failures are rethrown so the caller can decide what to show.
- */
+/** Fetches the current session. */
 export async function fetchSession(opts?: {
 	signal?: AbortSignal;
 	fetchImpl?: typeof fetch;
@@ -95,10 +85,7 @@ export interface SessionStore {
 	dispose(): void;
 }
 
-/**
- * Holds the current session. Transient failures (network, server) are retried
- * a bounded number of times; anything else is reported as an error state.
- */
+/** Holds the current session. */
 export function createSessionStore(
 	opts: {
 		fetchImpl?: typeof fetch;

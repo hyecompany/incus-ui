@@ -17,10 +17,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Validates one websocket frame. `reason` is a fixed code naming the bad
- * field, so it can be logged without echoing the payload.
- */
+/** Validates one websocket frame. */
 export function parseEventFrame(data: unknown): ParseResult {
 	let raw: unknown = data;
 	if (typeof data === "string") {

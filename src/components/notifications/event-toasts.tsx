@@ -34,12 +34,7 @@ function show(notice: Notice) {
 	}
 }
 
-/**
- * Pop-up notifications for Incus activity across all projects: operations
- * update one toast in place from running to done; resource changes (create,
- * delete, rename, start, stop, ...) get a short toast. Uses the shared events
- * connection, so it opens no socket of its own.
- */
+/** Toasts for operations and resource changes across all projects. */
 export function EventToasts() {
 	const running = useRef(new Set<string>());
 
@@ -64,8 +59,7 @@ export function EventToasts() {
 			});
 		},
 		onRecovery: () => {
-			// Incus does not replay events: a running operation may have finished
-			// while we were disconnected, so its spinner can no longer be trusted.
+			// Events are not replayed, so running operations may have finished meanwhile.
 			for (const id of running.current) {
 				toast.info("Operation status unknown", {
 					id,

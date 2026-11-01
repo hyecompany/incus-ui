@@ -41,10 +41,7 @@ interface IncusEnvelope {
 // Placeholder origin used only to parse relative paths; never requested.
 const URL_BASE = "http://incus.invalid";
 
-/**
- * Builds a same-origin request path. Undefined query values are dropped and
- * existing query params on `path` are kept (query values win on conflict).
- */
+/** Builds a same-origin request path. */
 export function buildIncusUrl(path: string, query?: IncusQuery): string {
 	// Reject protocol-relative paths so a request can never leave the origin.
 	if (!path.startsWith("/") || path.startsWith("//")) {
@@ -61,10 +58,7 @@ export function buildIncusUrl(path: string, query?: IncusQuery): string {
 	return `${url.pathname}${url.search}`;
 }
 
-/**
- * Performs a GET against the Incus REST API through the same-origin proxy and
- * returns the envelope `metadata`. Throws IncusApiError for every failure.
- */
+/** GETs an Incus API path and returns the envelope `metadata`. */
 export async function incusRequest<T>(
 	path: string,
 	opts: {

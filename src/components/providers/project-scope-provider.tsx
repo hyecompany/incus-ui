@@ -11,10 +11,7 @@ export const ProjectScopeContext = createContext<ProjectScopeStore | null>(
 	null,
 );
 
-/**
- * Holds the selected project scope for the lifetime of the mounted UI.
- * Starts in All Projects mode. Consume through useProjectScope.
- */
+/** Holds the selected project scope for the lifetime of the mounted UI. */
 export function ProjectScopeProvider({ children }: { children: ReactNode }) {
 	const [store] = useState(() => createProjectScopeStore());
 	return (

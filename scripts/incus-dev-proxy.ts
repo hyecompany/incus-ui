@@ -2,12 +2,7 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Development proxy that serves the Vite app (/ui) and the Incus API from one origin.
- * Modeled on the Ararat devProxy.ts, but runs on Node with native PFX client-certificate support.
- *
- * Run with: npm run dev:proxy
- */
+/** Development proxy that serves the Vite app (/ui) and the Incus API from one origin. */
 import { existsSync, readFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -74,7 +69,7 @@ export function isApiPath(pathname: string): boolean {
 	return !(pathname === "/ui" || pathname.startsWith("/ui/"));
 }
 
-/** Picks the upstream for a request path and returns the full upstream URL (path and query kept). */
+/** Upstream URL for a request path (path and query kept). */
 export function resolveTarget(requestPath: string, targets: ProxyTargets): { isApi: boolean; url: URL } {
 	const parsed = new URL(requestPath, "http://proxy.invalid");
 	const isApi = isApiPath(parsed.pathname);
@@ -82,10 +77,7 @@ export function resolveTarget(requestPath: string, targets: ProxyTargets): { isA
 	return { isApi, url: new URL(`${parsed.pathname}${parsed.search}`, base) };
 }
 
-/**
- * Rewrites a Location header that points back at the upstream onto the incoming origin.
- * App routes get the /ui prefix so the browser stays under the Vite base path.
- */
+/** Rewrites upstream Location headers onto the incoming origin. */
 export function rewriteLocation(location: string, upstreamUrl: URL, incomingOrigin: string, isApi: boolean): string {
 	let resolved: URL;
 	try {
@@ -113,7 +105,7 @@ export function allowsSelfSignedUpstream(url: URL): boolean {
 
 const API_UPGRADE_HEADERS = new Set(["cookie", "authorization", "user-agent", "upgrade", "connection"]);
 
-/** API websockets get an allowlist of headers; app websockets (Vite HMR) get everything except Host. */
+/** API websockets forward an allowlist of headers; Vite HMR gets all but Host. */
 export function filterUpgradeHeaders(
 	headers: Record<string, string | string[] | undefined>,
 	isApi: boolean,

@@ -27,12 +27,7 @@ interface DataLayer {
 
 const DataContext = createContext<DataLayer | null>(null);
 
-/**
- * One data layer per deployment and session: nothing learned under one
- * access context can satisfy another, and a session change discards the
- * previous layer (in-flight work from it is ignored). Event coverage comes
- * from the shared events connection.
- */
+/** One data layer per session; a session change discards the previous one. */
 export function IncusDataProvider({ children }: { children: ReactNode }) {
 	const session = useIncusSession();
 	const sessionKey =

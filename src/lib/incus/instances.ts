@@ -5,10 +5,7 @@ import { IncusApiError, incusRequest } from "./client.ts";
 import type { ProjectScope } from "./project-scope.ts";
 import { projectScopeQuery } from "./project-scope.ts";
 
-/**
- * Instance fields the UI can select (ordinary representation). Config,
- * devices and runtime state (/state, recursion=2) are not exposed yet.
- */
+/** Instance fields the UI can select (ordinary representation). */
 export interface Instance {
 	name: string;
 	project: string;
@@ -26,12 +23,7 @@ export interface Instance {
 
 export type InstanceField = keyof Instance;
 
-/**
- * Statuses accepted as query criteria. Incus compiles a single `eq` value to
- * the anchored, case-insensitive regex `(?i)^value$`; for these plain words
- * that is exactly case-insensitive equality, so local evaluation matches the
- * server. Arbitrary patterns are not accepted for that reason.
- */
+/** Statuses accepted as query criteria. */
 export type InstanceStatus =
 	| "Running"
 	| "Stopped"
@@ -76,10 +68,7 @@ function collectionQuery(scope: ProjectScope, criteria: InstanceCriteria) {
 	};
 }
 
-/**
- * `GET /1.0/instances` (recursion=0, optionally filtered): identities only.
- * Filtering happens before conversion to URLs, so only matches are returned.
- */
+/** `GET /1.0/instances` (recursion=0, optionally filtered): identities only. */
 export async function fetchInstanceIdentities(
 	scope: ProjectScope,
 	criteria: InstanceCriteria,
@@ -130,10 +119,7 @@ export async function fetchInstance(
 	}
 }
 
-/**
- * Identity from an instance URL. Incus adds `?project=` for non-default
- * projects; without it the project is the requested one, else "default".
- */
+/** Identity from an instance URL. */
 export function instanceIdentityFromUrl(
 	url: string,
 	scope: ProjectScope,

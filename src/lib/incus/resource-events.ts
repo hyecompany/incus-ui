@@ -3,10 +3,7 @@
 
 import type { IncusEvent } from "./events/types.ts";
 
-/**
- * A resource change described by an Incus lifecycle event, e.g.
- * `instance-created` with source `/1.0/instances/c1?project=web`.
- */
+/** A resource change described by an Incus lifecycle event. */
 export interface ResourceChange {
 	/** Full lifecycle action, e.g. "instance-renamed" or "storage-volume-created". */
 	action: string;
@@ -29,10 +26,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reads a lifecycle event into a ResourceChange. Returns null for other event
- * types and for lifecycle events without a usable `/1.0/...` source.
- */
+/** Reads a lifecycle event into a ResourceChange. */
 export function parseResourceChange(event: IncusEvent): ResourceChange | null {
 	if (event.type !== "lifecycle" || !isRecord(event.metadata)) {
 		return null;

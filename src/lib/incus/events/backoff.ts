@@ -13,10 +13,7 @@ export const DEFAULT_BACKOFF: BackoffOptions = {
 	maxMs: 30_000,
 };
 
-/**
- * Full-jitter exponential backoff. `attempt` is zero-based: the first retry
- * waits somewhere in [0, baseMs). The result never exceeds maxMs.
- */
+/** Full-jitter exponential backoff. */
 export function backoffDelay(
 	attempt: number,
 	random: () => number,

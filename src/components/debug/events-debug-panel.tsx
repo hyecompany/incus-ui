@@ -124,10 +124,7 @@ function StatusBadge({
 	);
 }
 
-/**
- * Developer view of the Events Layer: connection state per stream, plus a bounded in-memory feed of received events,
- * interruptions and recovery notices.
- */
+/** Debug view of event connections and a bounded in-memory event feed. */
 export function EventsDebugPanel() {
 	const manager = useEventsManager();
 	const { scope: headerScope } = useProjectScope();

@@ -15,11 +15,7 @@ export const IncusEventsContext = createContext<IncusEventsManager | null>(
 	null,
 );
 
-/**
- * Owns one IncusEventsManager per session key. The manager is created in an
- * effect, not during render, so StrictMode's double mount disposes the first
- * one cleanly. A null key (logged out or untrusted) keeps no manager at all.
- */
+/** Owns one IncusEventsManager per session key. */
 export function IncusEventsProvider({
 	sessionKey,
 	children,
@@ -51,11 +47,7 @@ export function IncusEventsProvider({
 	);
 }
 
-/**
- * Mounts IncusEventsProvider with the current session's key. Until a trusted
- * session is known no socket is opened; a different session replaces the
- * manager, which closes the previous session's connections.
- */
+/** Mounts IncusEventsProvider with the current session's key. */
 export function IncusSessionEventsProvider({
 	children,
 }: {

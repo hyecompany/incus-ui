@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * When and under which event coverage a fact was established. `epoch` is set
- * only if the event connection was up at that epoch when the request was sent
- * (or the event arrived), which is what lets the fact stay fresh by events.
- */
+/** When and under which event coverage a fact was established. */
 export interface Validation {
 	at: number;
 	epoch: number | null;
@@ -19,11 +15,7 @@ export interface FieldGroup {
 	invalid: boolean;
 }
 
-/**
- * Everything known about one resource identity. A deletion ends the current
- * lifecycle: a later creation with the same name starts a new one and nothing
- * from the old lifecycle carries over.
- */
+/** Everything known about one resource identity. */
 export interface ResourceRecord {
 	key: string;
 	lifecycle: number;
@@ -39,10 +31,7 @@ export interface CollectionRecord {
 	members: ReadonlySet<string>;
 	/** Every member is known (the response established full membership). */
 	complete: boolean;
-	/**
-	 * Resources that may or may not belong (e.g. created, but the predicate's
-	 * fields are still unknown). While any remain, membership is not settled.
-	 */
+	/** Possible members whose membership cannot be decided yet. */
 	unresolved: ReadonlySet<string>;
 	validation?: Validation;
 	invalid: boolean;
@@ -50,10 +39,7 @@ export interface CollectionRecord {
 
 type Listener = (changed: ReadonlySet<string>) => void;
 
-/**
- * Shared in-memory state. Writes happen inside batch(); listeners are told
- * once per batch which record and collection keys changed.
- */
+/** Shared in-memory state. */
 export class ObservationStore {
 	private readonly records = new Map<string, ResourceRecord>();
 	private readonly collections = new Map<string, CollectionRecord>();

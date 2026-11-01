@@ -9,10 +9,7 @@ import type { ProjectScope } from "@/lib/incus/project-scope";
 export interface UseProjectScopeResult {
 	scope: ProjectScope;
 	setScope: (next: ProjectScope) => void;
-	/**
-	 * False only when the data layer knows the selected project does not exist
-	 * (or is not visible to this session). Unknown is treated as available.
-	 */
+	/** False only when the selected project is known not to exist. */
 	isAvailable: boolean;
 }
 

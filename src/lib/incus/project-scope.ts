@@ -3,10 +3,7 @@
 
 import type { IncusQuery } from "./client.ts";
 
-/**
- * The UI project scope. `all` is the "All Projects" mode and is NOT the Incus
- * project named "default"; both are selectable as separate entries.
- */
+/** The UI project scope. */
 export type ProjectScope = { kind: "all" } | { kind: "project"; name: string };
 
 export const ALL_PROJECTS: ProjectScope = { kind: "all" };
@@ -37,10 +34,7 @@ export interface ScopeSupport {
 	project: boolean;
 }
 
-/**
- * Query parameters that express the scope for one endpoint. Parameters are
- * only attached where the endpoint declares support for them.
- */
+/** Query parameters that express the scope for one endpoint. */
 export function projectScopeQuery(
 	scope: ProjectScope,
 	support: ScopeSupport,
@@ -60,10 +54,7 @@ export interface ProjectScopeStore {
 	subscribe(listener: () => void): () => void;
 }
 
-/**
- * Framework-free store for useSyncExternalStore. Listeners run only when the
- * scope actually changes.
- */
+/** Framework-free store for useSyncExternalStore. */
 export function createProjectScopeStore(
 	initial: ProjectScope = ALL_PROJECTS,
 ): ProjectScopeStore {

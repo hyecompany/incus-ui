@@ -46,14 +46,7 @@ const fieldsKey = (fields: readonly ProjectField[]) =>
 	[...fields].sort().join(",");
 const fromKey = (key: string) => key.split(",") as ProjectField[];
 
-/**
- * Projects visible to this session, with only the selected fields.
- *
- * ```ts
- * const { data, complete, fresh, fetching, error } = useProjects(["name"]);
- * ```
- * Projects are not project-scoped, so the header's selection does not apply.
- */
+/** Projects visible to this session, with only the selected fields. */
 export function useProjects<const F extends readonly ProjectField[]>(
 	fields: F,
 ): CollectionResult<Selected<F>> {
@@ -71,10 +64,7 @@ export function useProjects<const F extends readonly ProjectField[]>(
 	return useWatch(watch, fallback) as CollectionResult<Selected<F>>;
 }
 
-/**
- * One project with only the selected fields. `exists` is false when the
- * project is known not to exist (or not to be visible to this session).
- */
+/** One project with only the selected fields. */
 export function useProject<const F extends readonly ProjectField[]>(
 	/** null: nothing to watch (keeps hook order stable for optional lookups). */
 	name: string | null,

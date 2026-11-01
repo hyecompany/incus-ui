@@ -45,10 +45,7 @@ export function channelKey(scope: ProjectScope, stream: EventStream): string {
 	return `${projectScopeKey(scope)}|${stream}`;
 }
 
-/**
- * Builds the events path for one stream. Each socket requests only its
- * stream's types, and a subscriber's own `types` are filtered client-side.
- */
+/** Builds the events path for one stream. */
 export function buildEventsPath(
 	scope: ProjectScope,
 	stream: EventStream,
@@ -119,14 +116,7 @@ function errorName(error: unknown): string {
 	return error instanceof Error ? error.name : typeof error;
 }
 
-/**
- * One socket per (scope, stream), refcounted by subscribers. Delivery is
- * synchronous in arrival order, so there is no queue to drop beyond dispose().
- *
- * Incus does not replay events. After a reconnect, subscribers get a
- * RecoveryNotice, which means the transport is back and events may have been
- * missed. It does not mean they have caught up.
- */
+/** One socket per (scope, stream), refcounted by subscribers. */
 export class IncusEventsManager {
 	private readonly deps: IncusEventsManagerDeps;
 	private readonly origin: string;
@@ -160,11 +150,7 @@ export class IncusEventsManager {
 		this.maxAttempts = deps.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
 	}
 
-	/**
-	 * Registers a subscriber on each stream its types need, opening those sockets
-	 * if they are not already open. Returns an unsubscribe function that releases
-	 * every stream it joined. Throws after dispose().
-	 */
+	/** Subscribes on each stream the types need; returns an unsubscribe function. */
 	subscribe(subscription: Subscription): () => void {
 		if (this.disposed) {
 			throw new Error("IncusEventsManager is disposed");
@@ -229,10 +215,7 @@ export class IncusEventsManager {
 		};
 	}
 
-	/**
-	 * Closes every socket, cancels timers and probes, and drops subscribers and
-	 * status. No notices are delivered. Subscribe throws afterwards.
-	 */
+	/** Closes every socket, cancels timers and probes, and drops subscribers and status. */
 	dispose(): void {
 		if (this.disposed) {
 			return;
@@ -351,8 +334,7 @@ export class IncusEventsManager {
 			}
 			channel.socket = null;
 			if (!opened) {
-				// A WebSocket cannot expose HTTP status, so ask the endpoint why
-				// it refused the upgrade before deciding whether to retry.
+				// WebSockets hide the HTTP status, so probe to tell auth failures apart.
 				void this.probe(channel, token);
 				return;
 			}
@@ -432,8 +414,7 @@ export class IncusEventsManager {
 			);
 			return;
 		}
-		// HTTP 400 on a plain GET means the endpoint is reachable and refused the
-		// upgrade. Name that so it does not read as a transport failure.
+		// HTTP 400 on a plain GET means the endpoint is reachable and refused the upgrade.
 		let message = `probe returned HTTP ${status}`;
 		if (status === null) {
 			message = "probe failed";
@@ -443,10 +424,7 @@ export class IncusEventsManager {
 		this.onLoss(channel, { kind: "network", message }, false);
 	}
 
-	/**
-	 * Single place where a failed or closed connection is handled. Retries are
-	 * scheduled here, so there is at most one pending timer per stream.
-	 */
+	/** Single place where a failed or closed connection is handled. */
 	private onLoss(
 		channel: Channel,
 		error: EventsError,

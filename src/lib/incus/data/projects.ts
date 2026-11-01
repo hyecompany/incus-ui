@@ -27,26 +27,6 @@ import type {
 } from "./core.ts";
 import type { Validation } from "./store.ts";
 
-/*
- * Projects resource definition (issue #13).
- *
- * Identity: deployment + access context (one DataCore per session) + name.
- * Projects are not project-scoped: the selected project is never applied.
- *
- * Representations:
- *   GET /1.0/projects               membership (complete) + names
- *   GET /1.0/projects?recursion=1   membership (complete) + details of all
- *   GET /1.0/projects/{name}        existence + details of one (404 = absent)
- * Field groups: the name is the identity; "details" = description + config,
- * returned and invalidated together. config is replaced as a whole.
- *
- * Events (lifecycle, all projects):
- *   project-created  exists (new lifecycle, details unknown), joins membership
- *   project-deleted  known absent, leaves membership; no request
- *   project-renamed  identity moves from context.old_name, details carried over
- *   project-updated  details need validation
- */
-
 const COLLECTION = "projects";
 const DETAILS = "details";
 const PREFIX = "project\0";
@@ -237,8 +217,7 @@ function applyMembership(
 function applyDetails(ctx: DataContext, project: ProjectObject, v: Validation) {
 	const key = projectKey(project.name);
 	const existing = ctx.store.record(key)?.groups.get(DETAILS);
-	// Responses carry no server revision; of two overlapping reads, keep the
-	// one sent later rather than the one that happened to arrive later.
+	// No server revision: prefer the later-sent of two overlapping reads.
 	if (existing && !existing.invalid && existing.validation.at > v.at) return;
 	ctx.store.setGroup(
 		key,

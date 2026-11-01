@@ -5,12 +5,7 @@ import { IncusApiError } from "../client.ts";
 import type { IncusEvent } from "../events/types.ts";
 import { ObservationStore, type Validation } from "./store.ts";
 
-/**
- * Event coverage as seen by the data layer.
- * - connected: events are flowing; `epoch` identifies this continuous stretch
- * - interrupted: events stopped; facts await reconciliation after restore
- * - unavailable: no event coverage; freshness falls back to age
- */
+/** Event coverage as seen by the data layer. */
 export type CoverageState = "connected" | "interrupted" | "unavailable";
 
 export interface Coverage {
@@ -31,10 +26,7 @@ export interface DataContext {
 	eventValidation(): Validation;
 	/** Fresh under the current coverage and freshness rules. */
 	isFresh(validation: Validation | undefined): boolean;
-	/**
-	 * Whether a stale fact should be fetched now. While coverage is
-	 * interrupted we keep showing it and wait for restore to reconcile.
-	 */
+	/** Whether a stale fact should be fetched now. */
 	shouldValidate(validation: Validation | undefined): boolean;
 }
 
@@ -42,10 +34,7 @@ export interface DataContext {
 export interface PlannedRequest<N extends Need> {
 	key: string;
 	covers(need: N): boolean;
-	/**
-	 * Performs the request and returns how to apply it. The applier runs inside
-	 * one store batch with the validation captured when the request was sent.
-	 */
+	/** Performs the request and returns how to apply it. */
 	run(
 		signal: AbortSignal,
 	): Promise<(ctx: DataContext, validation: Validation) => void>;
@@ -66,10 +55,7 @@ export interface DataCoreOptions {
 	now?: () => number;
 	/** Without event coverage, how long a validated fact counts as fresh. */
 	uncoveredTtlMs?: number;
-	/**
-	 * First automatic retry delay after a failure; doubles per attempt up to
-	 * 60s. Auth and permission failures are never retried automatically.
-	 */
+	/** First automatic retry delay after a failure; doubles per attempt up to 60s. */
 	retryAfterMs?: number;
 	maxConcurrent?: number;
 }
@@ -87,15 +73,7 @@ interface InFlight {
 	controller: AbortController;
 }
 
-/**
- * The shared data layer core: one instance per deployment and session, so
- * nothing learned under one access context can satisfy another.
- *
- * Responses and events both go through resource definitions into one
- * ObservationStore. A response is applied together with any events that
- * arrived while it was in flight (replayed on top), so an older read can never
- * undo a deletion, rename or update that happened meanwhile.
- */
+/** Shared data layer core; one instance per deployment and session. */
 export class DataCore {
 	readonly store = new ObservationStore();
 	private coverageState: Coverage = { state: "unavailable", epoch: 0 };
@@ -185,8 +163,7 @@ export class DataCore {
 			if (!entry) return;
 			entry.refs -= 1;
 			if (entry.refs === 0) this.active.delete(need.key);
-			// In-flight requests are left to finish: other needs may share them,
-			// and their facts are useful to the store either way.
+			// In-flight requests finish anyway: they may be shared and their facts are still useful.
 		};
 	}
 
@@ -220,8 +197,7 @@ export class DataCore {
 		if (previous.state === state) return;
 		this.coverageState = {
 			state,
-			// A new continuous stretch of events begins: nothing validated before
-			// it is covered by it, so it must be reconciled.
+			// New coverage epoch: earlier facts need reconciling.
 			epoch: state === "connected" ? previous.epoch + 1 : previous.epoch,
 		};
 		this.emitMeta();
@@ -261,8 +237,7 @@ export class DataCore {
 	private schedule(): void {
 		if (this.scheduled || this.disposed) return;
 		this.scheduled = true;
-		// One planning pass per microtask combines everything requested in the
-		// same tick without delaying anyone noticeably.
+		// Plan once per microtask to combine requirements from the same tick.
 		queueMicrotask(() => {
 			this.scheduled = false;
 			this.plan();
@@ -311,8 +286,7 @@ export class DataCore {
 			.run(flight.controller.signal)
 			.then((apply) => {
 				if (this.disposed) return;
-				// Settle before publishing so consumers see data and "not fetching"
-				// in one notification.
+				// Settle first so data and "not fetching" publish together.
 				this.inFlight.delete(request.key);
 				this.store.batch(() => {
 					apply(this.context, validation);

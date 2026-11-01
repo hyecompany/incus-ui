@@ -34,38 +34,6 @@ import type {
 } from "./core.ts";
 import type { CollectionRecord, Validation } from "./store.ts";
 
-/*
- * Instances resource definition.
- *
- * Identity: deployment + access context (one DataCore per session) + project
- * + name. The location (cluster member) is a field, not part of identity.
- *
- * Collections are queries over /1.0/instances identified by their resolved
- * scope (one project, or all projects) and predicate (status). Membership is
- * tracked separately from fields, and a complete broader result answers a
- * narrower query locally when the fields it needs are known.
- *
- * Representations:
- *   GET /1.0/instances[?filter]              identities (URLs) only
- *   GET /1.0/instances?recursion=1[&filter]  ordinary objects
- *   GET /1.0/instances/{name}?project=       one ordinary object (404 = absent)
- * Field groups:
- *   status    status, statusCode (also changed directly by state events)
- *   ordinary  type, location, architecture, description, createdAt,
- *             lastUsedAt, profiles
- *
- * Events (lifecycle, all projects):
- *   created                     exists (new lifecycle); joins unfiltered
- *                               lists; unresolved in status lists
- *   deleted                     known absent; leaves every list
- *   renamed                     identity moves (context.old_name), fields kept
- *   started/restarted/resumed   status Running
- *   stopped/shutdown            status Stopped
- *   paused                      status Frozen
- *   updated, migrated           ordinary fields need validation
- * Sub-resources (snapshots, backups, files, logs...) do not change instances.
- */
-
 const PREFIX = "instance\0";
 const COLLECTION_PREFIX = "instances\0";
 const STATUS = "status";
@@ -206,12 +174,7 @@ const usable = (c: CollectionRecord | undefined): c is CollectionRecord =>
 const settled = (c: CollectionRecord | undefined): c is CollectionRecord =>
 	usable(c) && c.unresolved.size === 0;
 
-/**
- * Membership for (scope, criteria), from the matching collection or derived
- * from a complete unfiltered collection of the same or a broader scope using
- * its members' known statuses. Members whose status is unknown are reported
- * as undecided rather than guessed; the planner resolves just those.
- */
+/** Membership for (scope, criteria), direct or derived from a broader complete list. */
 function membership(
 	scope: ProjectScope,
 	criteria: InstanceCriteria,
@@ -419,10 +382,7 @@ function readOne(need: InstanceNeed, ctx: DataContext): OneState {
 
 /* ------------------------------------------------------------- reconciling */
 
-/**
- * Re-evaluates every known collection for one instance after its existence
- * or status changed: it enters, leaves, or stays unresolved.
- */
+/** Re-evaluates collection membership for one instance. */
 function reconcileMembership(ctx: DataContext, id: InstanceIdentity): void {
 	const key = instanceKey(id);
 	const record = ctx.store.record(key);
@@ -487,11 +447,7 @@ function applyObject(
 	}
 }
 
-/**
- * Applies a collection response. A complete unfiltered list also establishes
- * that instances in its scope that it does not contain no longer exist; a
- * filtered list only establishes its own membership.
- */
+/** Applies a collection response. */
 function applyCollection(
 	ctx: DataContext,
 	scope: ProjectScope,

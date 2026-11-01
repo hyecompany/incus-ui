@@ -70,15 +70,7 @@ function useResolvedScope(project: string | undefined): ProjectScope {
 	return project !== undefined ? { kind: "project", name: project } : scope;
 }
 
-/**
- * Instances with only the selected fields.
- *
- * ```ts
- * useInstances(["name"], { status: "Running" });          // current project
- * useInstances(["name"], { project: "production", status: "Running" });
- * ```
- * In All Projects mode, every project visible to the session is included.
- */
+/** Instances with only the selected fields. */
 export function useInstances<const F extends readonly InstanceField[]>(
 	fields: F,
 	query: InstanceQuery = {},
@@ -107,11 +99,7 @@ const NEEDS_PROJECT = new IncusApiError(
 	"An instance name is only unique within a project: pass a project in All Projects mode",
 );
 
-/**
- * One instance with only the selected fields, in the current project unless
- * `project` is given. Instance names are unique per project, so in All
- * Projects mode a project must be passed.
- */
+/** One instance with only the selected fields. */
 export function useInstance<const F extends readonly InstanceField[]>(
 	name: string | null,
 	fields: F,

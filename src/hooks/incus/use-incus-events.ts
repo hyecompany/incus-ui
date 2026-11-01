@@ -31,11 +31,7 @@ export interface UseIncusEventsOptions {
 	onInterrupted?(status: ScopeStatus): void;
 }
 
-/**
- * Subscribes to Incus events for a scope while mounted. Handlers and the scope
- * are read from a ref, so new function identities do not resubscribe. Only a
- * change of scope key or types does. Pass null to pause.
- */
+/** Subscribes to Incus events for a scope while mounted. */
 export function useIncusEvents(options: UseIncusEventsOptions | null): void {
 	const manager = useEventsManager();
 	const latest = useRef(options);
@@ -66,10 +62,7 @@ export function useIncusEvents(options: UseIncusEventsOptions | null): void {
 	}, [manager, scopeKey, typesKey]);
 }
 
-/**
- * Live status for one stream of a scope (default: core). Stable between
- * unrelated changes, and equal scopes with the same key share one snapshot.
- */
+/** Live status for one stream of a scope (default: core). */
 export function useEventsStatus(
 	scope: ProjectScope,
 	stream: EventStream = "core",

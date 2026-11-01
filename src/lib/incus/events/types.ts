@@ -11,10 +11,7 @@ export const INCUS_EVENT_TYPES: readonly IncusEventType[] = [
 	"logging",
 ];
 
-/**
- * One frame from `/1.0/events`. `project` and `location` are copied only when
- * Incus sent them; they are never inferred from `metadata`.
- */
+/** One frame from `/1.0/events`. */
 export interface IncusEvent<M = unknown> {
 	type: IncusEventType;
 	timestamp: string;
@@ -23,11 +20,7 @@ export interface IncusEvent<M = unknown> {
 	location?: string;
 }
 
-/**
- * Each scope has two sockets. `core` carries lifecycle and operation events.
- * `logging` is separate because Incus can restrict it to privileged users, and
- * a refusal there must not take core delivery down with it.
- */
+/** Each scope has two sockets. */
 export type EventStream = "core" | "logging";
 
 export type ConnectionState =
@@ -53,10 +46,7 @@ export interface ScopeStatus {
 	interruptedAt?: number;
 }
 
-/**
- * The transport was restored after an interruption. Incus does not replay
- * events, so subscribers MAY have missed events and must reconcile themselves.
- */
+/** The transport was restored after an interruption. */
 export interface RecoveryNotice {
 	scope: ProjectScope;
 	stream?: EventStream;

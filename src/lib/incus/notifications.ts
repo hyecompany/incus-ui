@@ -45,10 +45,7 @@ function operationTarget(op: Record<string, unknown>): string | undefined {
 	return undefined;
 }
 
-/**
- * Progress text Incus puts in operation metadata, e.g.
- * `{ download_progress: "rootfs: 42% (5MB/s)" }` or `{ progress: { percent } }`.
- */
+/** Progress text from operation metadata (`*_progress` or `progress.percent`). */
 export function operationProgress(
 	op: Record<string, unknown>,
 ): string | undefined {
@@ -69,10 +66,7 @@ export function operationProgress(
 	return undefined;
 }
 
-/**
- * Turns an operation event into a toast that is updated in place (keyed by
- * operation id) from running to its final state.
- */
+/** Toast for an operation, keyed by operation id so it updates in place. */
 export function noticeForOperation(event: IncusEvent): Notice | null {
 	if (event.type !== "operation" || !isRecord(event.metadata)) return null;
 	const op = event.metadata;
@@ -145,10 +139,7 @@ const VERB_LABELS: Record<string, { text: string; tone: NoticeTone }> = {
 	restored: { text: "restored", tone: "success" },
 };
 
-/**
- * Short toast for a resource lifecycle change (create, delete, rename,
- * update, start, stop, ...). Unknown or noisy actions return null.
- */
+/** Toast for a resource lifecycle change, or null for noisy actions. */
 export function noticeForLifecycle(event: IncusEvent): Notice | null {
 	const change = parseResourceChange(event);
 	if (!change) return null;
