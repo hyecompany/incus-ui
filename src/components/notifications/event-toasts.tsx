@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import {
 	useEventsStatus,
 	useIncusEvents,
@@ -89,13 +89,5 @@ export function EventToasts() {
 		}
 	}, [status.state, status.lastError?.kind]);
 
-	return (
-		<Toaster
-			theme="dark"
-			position="bottom-right"
-			richColors
-			closeButton
-			visibleToasts={5}
-		/>
-	);
+	return null;
 }
