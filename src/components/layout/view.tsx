@@ -8,6 +8,7 @@ import {
 	useEffect,
 	useState,
 } from "react";
+import { ProjectSelector } from "../navigation/project-selector";
 import { Separator } from "../ui/separator";
 import { SidebarTrigger } from "../ui/sidebar";
 
@@ -29,6 +30,7 @@ function RawHeader({ children }: { children: ReactNode }) {
 				<SidebarTrigger className="-ml-1" />
 				<Separator orientation="vertical" className="mx-2 " />
 				{children}
+				<ProjectSelector className="ml-auto" />
 			</div>
 		</header>
 	);
