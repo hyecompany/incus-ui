@@ -9,6 +9,8 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { Toaster } from "sonner";
+import { IncusSessionProvider } from "@/components/providers/session-provider";
 
 import "../styles.css";
 
@@ -27,7 +29,16 @@ function RootDocument() {
 	return (
 		<>
 			<HeadContent />
-			<Outlet />
+			<IncusSessionProvider>
+				<Outlet />
+			</IncusSessionProvider>
+			<Toaster
+				theme="dark"
+				position="bottom-right"
+				richColors
+				closeButton
+				visibleToasts={5}
+			/>
 			<TanStackDevtools
 				config={{
 					position: "bottom-right",

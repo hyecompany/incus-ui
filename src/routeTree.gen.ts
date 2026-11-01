@@ -14,7 +14,15 @@ import { Route as AuthRouteRouteImport } from './routes/auth/route'
 import { Route as UiIndexRouteImport } from './routes/_ui/index'
 import { Route as UiInstancesRouteRouteImport } from './routes/_ui/instances/route'
 import { Route as AuthIndexRouteImport } from './routes/auth/index'
+import { Route as AuthCliIndexRouteImport } from './routes/auth/cli/index'
 import { Route as AuthTlsIndexRouteImport } from './routes/auth/tls/index'
+import { Route as AuthTlsContinueIndexRouteImport } from './routes/auth/tls/continue/index'
+import { Route as AuthTlsEnrollIndexRouteImport } from './routes/auth/tls/enroll/index'
+import { Route as AuthTlsExistingIndexRouteImport } from './routes/auth/tls/existing/index'
+import { Route as AuthTlsGenerateIndexRouteImport } from './routes/auth/tls/generate/index'
+import { Route as AuthTlsImportIndexRouteImport } from './routes/auth/tls/import/index'
+import { Route as AuthTlsManualIndexRouteImport } from './routes/auth/tls/manual/index'
+import { Route as AuthTlsTokenIndexRouteImport } from './routes/auth/tls/token/index'
 
 const UiRouteRoute = UiRouteRouteImport.update({
   id: '/_ui',
@@ -40,9 +48,49 @@ const AuthIndexRoute = AuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const AuthCliIndexRoute = AuthCliIndexRouteImport.update({
+  id: '/cli/',
+  path: '/cli/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 const AuthTlsIndexRoute = AuthTlsIndexRouteImport.update({
   id: '/tls/',
   path: '/tls/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsContinueIndexRoute = AuthTlsContinueIndexRouteImport.update({
+  id: '/tls/continue/',
+  path: '/tls/continue/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsEnrollIndexRoute = AuthTlsEnrollIndexRouteImport.update({
+  id: '/tls/enroll/',
+  path: '/tls/enroll/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsExistingIndexRoute = AuthTlsExistingIndexRouteImport.update({
+  id: '/tls/existing/',
+  path: '/tls/existing/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsGenerateIndexRoute = AuthTlsGenerateIndexRouteImport.update({
+  id: '/tls/generate/',
+  path: '/tls/generate/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsImportIndexRoute = AuthTlsImportIndexRouteImport.update({
+  id: '/tls/import/',
+  path: '/tls/import/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsManualIndexRoute = AuthTlsManualIndexRouteImport.update({
+  id: '/tls/manual/',
+  path: '/tls/manual/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthTlsTokenIndexRoute = AuthTlsTokenIndexRouteImport.update({
+  id: '/tls/token/',
+  path: '/tls/token/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
 
@@ -51,13 +99,29 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteRouteWithChildren
   '/instances': typeof UiInstancesRouteRoute
   '/auth/': typeof AuthIndexRoute
+  '/auth/cli/': typeof AuthCliIndexRoute
   '/auth/tls/': typeof AuthTlsIndexRoute
+  '/auth/tls/continue/': typeof AuthTlsContinueIndexRoute
+  '/auth/tls/enroll/': typeof AuthTlsEnrollIndexRoute
+  '/auth/tls/existing/': typeof AuthTlsExistingIndexRoute
+  '/auth/tls/generate/': typeof AuthTlsGenerateIndexRoute
+  '/auth/tls/import/': typeof AuthTlsImportIndexRoute
+  '/auth/tls/manual/': typeof AuthTlsManualIndexRoute
+  '/auth/tls/token/': typeof AuthTlsTokenIndexRoute
 }
 export interface FileRoutesByTo {
   '/instances': typeof UiInstancesRouteRoute
   '/': typeof UiIndexRoute
   '/auth': typeof AuthIndexRoute
+  '/auth/cli': typeof AuthCliIndexRoute
   '/auth/tls': typeof AuthTlsIndexRoute
+  '/auth/tls/continue': typeof AuthTlsContinueIndexRoute
+  '/auth/tls/enroll': typeof AuthTlsEnrollIndexRoute
+  '/auth/tls/existing': typeof AuthTlsExistingIndexRoute
+  '/auth/tls/generate': typeof AuthTlsGenerateIndexRoute
+  '/auth/tls/import': typeof AuthTlsImportIndexRoute
+  '/auth/tls/manual': typeof AuthTlsManualIndexRoute
+  '/auth/tls/token': typeof AuthTlsTokenIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -66,13 +130,46 @@ export interface FileRoutesById {
   '/_ui/instances': typeof UiInstancesRouteRoute
   '/_ui/': typeof UiIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/auth/cli/': typeof AuthCliIndexRoute
   '/auth/tls/': typeof AuthTlsIndexRoute
+  '/auth/tls/continue/': typeof AuthTlsContinueIndexRoute
+  '/auth/tls/enroll/': typeof AuthTlsEnrollIndexRoute
+  '/auth/tls/existing/': typeof AuthTlsExistingIndexRoute
+  '/auth/tls/generate/': typeof AuthTlsGenerateIndexRoute
+  '/auth/tls/import/': typeof AuthTlsImportIndexRoute
+  '/auth/tls/manual/': typeof AuthTlsManualIndexRoute
+  '/auth/tls/token/': typeof AuthTlsTokenIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/instances' | '/auth/' | '/auth/tls/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/instances'
+    | '/auth/'
+    | '/auth/cli/'
+    | '/auth/tls/'
+    | '/auth/tls/continue/'
+    | '/auth/tls/enroll/'
+    | '/auth/tls/existing/'
+    | '/auth/tls/generate/'
+    | '/auth/tls/import/'
+    | '/auth/tls/manual/'
+    | '/auth/tls/token/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/instances' | '/' | '/auth' | '/auth/tls'
+  to:
+    | '/instances'
+    | '/'
+    | '/auth'
+    | '/auth/cli'
+    | '/auth/tls'
+    | '/auth/tls/continue'
+    | '/auth/tls/enroll'
+    | '/auth/tls/existing'
+    | '/auth/tls/generate'
+    | '/auth/tls/import'
+    | '/auth/tls/manual'
+    | '/auth/tls/token'
   id:
     | '__root__'
     | '/_ui'
@@ -80,7 +177,15 @@ export interface FileRouteTypes {
     | '/_ui/instances'
     | '/_ui/'
     | '/auth/'
+    | '/auth/cli/'
     | '/auth/tls/'
+    | '/auth/tls/continue/'
+    | '/auth/tls/enroll/'
+    | '/auth/tls/existing/'
+    | '/auth/tls/generate/'
+    | '/auth/tls/import/'
+    | '/auth/tls/manual/'
+    | '/auth/tls/token/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -125,11 +230,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/auth/cli/': {
+      id: '/auth/cli/'
+      path: '/cli'
+      fullPath: '/auth/cli/'
+      preLoaderRoute: typeof AuthCliIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/auth/tls/': {
       id: '/auth/tls/'
       path: '/tls'
       fullPath: '/auth/tls/'
       preLoaderRoute: typeof AuthTlsIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/continue/': {
+      id: '/auth/tls/continue/'
+      path: '/tls/continue'
+      fullPath: '/auth/tls/continue/'
+      preLoaderRoute: typeof AuthTlsContinueIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/enroll/': {
+      id: '/auth/tls/enroll/'
+      path: '/tls/enroll'
+      fullPath: '/auth/tls/enroll/'
+      preLoaderRoute: typeof AuthTlsEnrollIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/existing/': {
+      id: '/auth/tls/existing/'
+      path: '/tls/existing'
+      fullPath: '/auth/tls/existing/'
+      preLoaderRoute: typeof AuthTlsExistingIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/generate/': {
+      id: '/auth/tls/generate/'
+      path: '/tls/generate'
+      fullPath: '/auth/tls/generate/'
+      preLoaderRoute: typeof AuthTlsGenerateIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/import/': {
+      id: '/auth/tls/import/'
+      path: '/tls/import'
+      fullPath: '/auth/tls/import/'
+      preLoaderRoute: typeof AuthTlsImportIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/manual/': {
+      id: '/auth/tls/manual/'
+      path: '/tls/manual'
+      fullPath: '/auth/tls/manual/'
+      preLoaderRoute: typeof AuthTlsManualIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/tls/token/': {
+      id: '/auth/tls/token/'
+      path: '/tls/token'
+      fullPath: '/auth/tls/token/'
+      preLoaderRoute: typeof AuthTlsTokenIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
   }
@@ -150,12 +311,28 @@ const UiRouteRouteWithChildren =
 
 interface AuthRouteRouteChildren {
   AuthIndexRoute: typeof AuthIndexRoute
+  AuthCliIndexRoute: typeof AuthCliIndexRoute
   AuthTlsIndexRoute: typeof AuthTlsIndexRoute
+  AuthTlsContinueIndexRoute: typeof AuthTlsContinueIndexRoute
+  AuthTlsEnrollIndexRoute: typeof AuthTlsEnrollIndexRoute
+  AuthTlsExistingIndexRoute: typeof AuthTlsExistingIndexRoute
+  AuthTlsGenerateIndexRoute: typeof AuthTlsGenerateIndexRoute
+  AuthTlsImportIndexRoute: typeof AuthTlsImportIndexRoute
+  AuthTlsManualIndexRoute: typeof AuthTlsManualIndexRoute
+  AuthTlsTokenIndexRoute: typeof AuthTlsTokenIndexRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthIndexRoute: AuthIndexRoute,
+  AuthCliIndexRoute: AuthCliIndexRoute,
   AuthTlsIndexRoute: AuthTlsIndexRoute,
+  AuthTlsContinueIndexRoute: AuthTlsContinueIndexRoute,
+  AuthTlsEnrollIndexRoute: AuthTlsEnrollIndexRoute,
+  AuthTlsExistingIndexRoute: AuthTlsExistingIndexRoute,
+  AuthTlsGenerateIndexRoute: AuthTlsGenerateIndexRoute,
+  AuthTlsImportIndexRoute: AuthTlsImportIndexRoute,
+  AuthTlsManualIndexRoute: AuthTlsManualIndexRoute,
+  AuthTlsTokenIndexRoute: AuthTlsTokenIndexRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
