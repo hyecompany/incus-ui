@@ -42,7 +42,7 @@ export function connectEvents(core: DataCore, events: EventSource): () => void {
 	};
 	const unsubscribe = events.subscribe({
 		scope: ALL_PROJECTS,
-		types: ["lifecycle"],
+		types: ["lifecycle", "operation"],
 		onEvent: (event) => core.ingest(event),
 	});
 	const stopStatus = events.onStatus(apply);

@@ -31,7 +31,7 @@ describe("project representations", () => {
 		assert.deepEqual(seen, ["/1.0/projects"]);
 	});
 
-	it("recursion=1 yields details and drops used_by", async () => {
+	it("recursion=1 yields details including used_by", async () => {
 		const seen: string[] = [];
 		const projects = await fetchProjectObjects({
 			fetchImpl: respond(
@@ -40,7 +40,7 @@ describe("project representations", () => {
 				seen,
 			),
 		});
-		assert.deepEqual(projects, [{ name: "p", description: "d", config: { "features.images": "true" } }]);
+		assert.deepEqual(projects, [{ name: "p", description: "d", config: { "features.images": "true" }, usedBy: ["/1.0/instances/x"] }]);
 		assert.deepEqual(seen, ["/1.0/projects?recursion=1"]);
 	});
 
@@ -65,7 +65,7 @@ describe("project representations", () => {
 
 describe("parsing", () => {
 	it("defaults missing description and config, rejects wrong types", () => {
-		assert.deepEqual(parseProjectObject({ name: "p" }, "x"), { name: "p", description: "", config: {} });
+		assert.deepEqual(parseProjectObject({ name: "p" }, "x"), { name: "p", description: "", config: {}, usedBy: [] });
 		assert.throws(() => parseProjectObject({ description: "d" }, "x"), isKind("malformed"));
 		assert.throws(() => parseProjectObject({ name: "p", config: { a: 1 } }, "x"), isKind("malformed"));
 		assert.throws(() => parseProjectObject({ name: "p", description: 3 }, "x"), isKind("malformed"));

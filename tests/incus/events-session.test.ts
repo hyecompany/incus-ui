@@ -5,17 +5,34 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createSessionStore, parseSession } from "../../src/lib/incus/session.ts";
 
+const withoutCapabilities = ({ capabilities: _, ...rest }: ReturnType<typeof parseSession>) => rest;
+
 describe("parseSession", () => {
 	it("derives the session key from the real /1.0 fields", () => {
 		assert.deepEqual(
-			parseSession({
-				auth: "trusted",
-				auth_user_method: "tls",
-				auth_user_name: "abc123",
-				environment: { certificate_fingerprint: "fp1", server_name: "srv" },
-			}),
+			withoutCapabilities(
+				parseSession({
+					auth: "trusted",
+					auth_user_method: "tls",
+					auth_user_name: "abc123",
+					environment: { certificate_fingerprint: "fp1", server_name: "srv" },
+				}),
+			),
 			{ trusted: true, sessionKey: "fp1/tls:abc123", deploymentId: "fp1" },
 		);
+	});
+
+	it("reads API extensions as capabilities (#7)", () => {
+		const session = parseSession({
+			auth: "trusted",
+			api_version: "1.0",
+			api_extensions: ["api_filtering", "projects"],
+			environment: { server_clustered: true },
+		});
+		assert.equal(session.capabilities.known, true);
+		assert.equal(session.capabilities.clustered, true);
+		assert.deepEqual([...session.capabilities.extensions], ["api_filtering", "projects"]);
+		assert.equal(parseSession({ auth: "trusted" }).capabilities.known, false);
 	});
 
 	it("accepts the older auth_method field and falls back to server_name", () => {
@@ -42,11 +59,11 @@ describe("parseSession", () => {
 	it("is untrusted with no key for anything other than trusted", () => {
 		const untrusted = { trusted: false, sessionKey: null, deploymentId: null };
 		assert.deepEqual(
-			parseSession({ auth: "untrusted", auth_methods: ["tls"] }),
+			withoutCapabilities(parseSession({ auth: "untrusted", auth_methods: ["tls"] })),
 			untrusted,
 		);
-		assert.deepEqual(parseSession(null), untrusted);
-		assert.deepEqual(parseSession("trusted"), untrusted);
+		assert.deepEqual(withoutCapabilities(parseSession(null)), untrusted);
+		assert.deepEqual(withoutCapabilities(parseSession("trusted")), untrusted);
 	});
 
 	it("falls back to unknown identity fields without collapsing sessions", () => {

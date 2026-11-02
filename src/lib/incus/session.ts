@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+	type Capabilities,
+	parseCapabilities,
+	UNKNOWN_CAPABILITIES,
+} from "./capabilities.ts";
 import { IncusApiError, incusRequest } from "./client.ts";
 
 export interface IncusSession {
@@ -9,12 +14,15 @@ export interface IncusSession {
 	sessionKey: string | null;
 	/** The server's certificate fingerprint (or name). Null when not trusted. */
 	deploymentId: string | null;
+	/** API extensions and server facts (#7). */
+	capabilities: Capabilities;
 }
 
 const UNTRUSTED: IncusSession = {
 	trusted: false,
 	sessionKey: null,
 	deploymentId: null,
+	capabilities: UNKNOWN_CAPABILITIES,
 };
 
 function readString(
@@ -32,7 +40,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Reads the session from `GET /1.0` metadata. */
 export function parseSession(metadata: unknown): IncusSession {
 	if (!isRecord(metadata) || metadata.auth !== "trusted") {
-		return UNTRUSTED;
+		return { ...UNTRUSTED, capabilities: parseCapabilities(metadata) };
 	}
 	const method =
 		readString(metadata, "auth_user_method") ??
@@ -50,6 +58,7 @@ export function parseSession(metadata: unknown): IncusSession {
 		trusted: true,
 		sessionKey: `${deploymentId}/${method}:${user}`,
 		deploymentId,
+		capabilities: parseCapabilities(metadata),
 	};
 }
 

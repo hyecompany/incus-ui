@@ -36,14 +36,17 @@ describe("criteria", () => {
 });
 
 describe("parsing", () => {
-	it("keeps ordinary fields and drops config/devices", () => {
+	it("keeps ordinary fields with config and devices, and no runtime state", () => {
 		const parsed = parseInstanceObject(
 			{ name: "a", project: "web", status: "Running", status_code: 103, config: { x: "y" }, devices: {}, profiles: ["default"] },
 			"x",
 		);
 		assert.equal(parsed.project, "web");
 		assert.equal(parsed.statusCode, 103);
-		assert.equal("config" in parsed, false);
+		assert.deepEqual(parsed.config, { x: "y" });
+		assert.deepEqual(parsed.devices, {});
+		assert.equal("pid" in parsed, false);
+		assert.throws(() => parseInstanceObject({ name: "a", config: { x: 1 } }, "x"), isMalformed);
 		assert.throws(() => parseInstanceObject({ status: "Running" }, "x"), isMalformed);
 		assert.throws(() => parseInstanceObject({ name: "a", status_code: "103" }, "x"), isMalformed);
 		assert.throws(() => parseInstanceObject({ name: "a", profiles: [1] }, "x"), isMalformed);

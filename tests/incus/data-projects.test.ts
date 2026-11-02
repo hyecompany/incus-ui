@@ -353,7 +353,7 @@ describe("coverage and freshness", () => {
 		assert.equal(fresh.coverage.state, "connected", "the logging stream does not affect coverage");
 		seen.listener?.({ scope: ALL_PROJECTS, stream: "core", state: "reconnecting", generation: 0 });
 		assert.equal(fresh.coverage.state, "interrupted");
-		assert.deepEqual(seen.subscription?.types, ["lifecycle"]);
+		assert.deepEqual(seen.subscription?.types, ["lifecycle", "operation"]);
 		disconnect();
 		fresh.dispose();
 		assert.equal(coverageFor("failed", "connected"), "unavailable");
