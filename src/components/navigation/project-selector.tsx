@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { INSTANCE_LIST_FIELDS } from "@/components/instances/instance-list";
+import { LoadingStatus, SkeletonList } from "@/components/loading/skeletons";
 import {
 	Select,
 	SelectContent,
@@ -8,8 +10,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { usePrefetchInstances } from "@/hooks/incus/use-instances";
 import { useProjectScope } from "@/hooks/incus/use-project-scope";
 import { useProjects, useProjectsApi } from "@/hooks/incus/use-projects";
+import { collectionView } from "@/lib/incus/data/loading";
 import {
 	ALL_PROJECTS,
 	type ProjectScope,
@@ -18,7 +22,6 @@ import {
 } from "@/lib/incus/project-scope";
 import { cn } from "@/lib/ui/utils";
 
-const LOADING_KEY = "status:loading";
 const ERROR_KEY = "status:error";
 const EMPTY_KEY = "status:empty";
 
@@ -34,9 +37,13 @@ export function ProjectSelector({ className }: { className?: string }) {
 	// Names only: one small URL-list request, then kept live by events.
 	const projects = useProjects(["name"]);
 	const api = useProjectsApi();
+	const prefetchInstances = usePrefetchInstances();
+	// Hovering or focusing a project loads its instances before it is selected.
+	const prefetch = (target: ProjectScope) => () =>
+		prefetchInstances(INSTANCE_LIST_FIELDS, target);
 	const names = projects.data ?? [];
 	const error = projects.error;
-	const isLoading = projects.data === undefined && error === null;
+	const view = collectionView(projects);
 
 	const selectedKey = projectScopeKey(scope);
 
@@ -55,20 +62,25 @@ export function ProjectSelector({ className }: { className?: string }) {
 					<SelectValue>{scopeLabel(scope, isAvailable)}</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value={projectScopeKey(ALL_PROJECTS)}>
+					<SelectItem
+						value={projectScopeKey(ALL_PROJECTS)}
+						onPointerEnter={prefetch(ALL_PROJECTS)}
+						onFocus={prefetch(ALL_PROJECTS)}
+					>
 						All Projects
 					</SelectItem>
-					{isLoading && (
-						<SelectItem value={LOADING_KEY} disabled>
-							Loading projects…
-						</SelectItem>
+					{view.kind === "skeleton" && (
+						<>
+							<LoadingStatus label="Loading projects" />
+							<SkeletonList items={3} />
+						</>
 					)}
 					{error !== null && (
 						<SelectItem value={ERROR_KEY} disabled>
 							Could not load projects
 						</SelectItem>
 					)}
-					{projects.complete && names.length === 0 && (
+					{view.kind === "empty" && (
 						<SelectItem value={EMPTY_KEY} disabled>
 							No projects
 						</SelectItem>
@@ -77,6 +89,8 @@ export function ProjectSelector({ className }: { className?: string }) {
 						<SelectItem
 							key={project.name}
 							value={projectScopeKey({ kind: "project", name: project.name })}
+							onPointerEnter={prefetch({ kind: "project", name: project.name })}
+							onFocus={prefetch({ kind: "project", name: project.name })}
 						>
 							{project.name}
 						</SelectItem>

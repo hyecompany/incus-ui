@@ -134,3 +134,18 @@ export function useInstance<const F extends readonly InstanceField[]>(
 export function useInstancesApi(): InstancesApi | null {
 	return useDataLayer()?.instances ?? null;
 }
+
+/**
+ * Starts loading an instance list before it is shown (e.g. on hover), so the
+ * view renders from cache when it mounts. A no-op until a session is known.
+ */
+export function usePrefetchInstances() {
+	const api = useInstancesApi();
+	return (
+		fields: readonly InstanceField[],
+		scope: ProjectScope,
+		query: { status?: InstanceStatus } = {},
+	) => {
+		api?.prefetchList(fields, scope, { status: query.status });
+	};
+}

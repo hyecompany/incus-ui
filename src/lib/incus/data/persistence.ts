@@ -258,6 +258,29 @@ export class Persistence {
 			.filter((p): p is PersistencePolicy => !!p);
 	}
 
+	/** Policies by record and collection prefix, rebuilt only when definitions change. */
+	private indexed: {
+		count: number;
+		records: Map<string, PersistencePolicy>;
+		collections: Map<string, PersistencePolicy>;
+	} | null = null;
+
+	private policyIndex() {
+		const count = this.core.resourceDefinitions.length;
+		if (this.indexed?.count === count) return this.indexed;
+		const policies = this.policies();
+		this.indexed = {
+			count,
+			records: new Map(policies.map((p) => [p.recordPrefix, p])),
+			collections: new Map(
+				policies
+					.filter((p) => p.collectionPrefix)
+					.map((p) => [p.collectionPrefix as string, p]),
+			),
+		};
+		return this.indexed;
+	}
+
 	private async hydrate(): Promise<void> {
 		const policies = this.policies();
 		const generation = this.core.currentGeneration;
@@ -300,12 +323,8 @@ export class Persistence {
 	/** Filters before queueing: only allowlisted groups ever enter the queue. */
 	private enqueue(changed: ReadonlySet<string>): void {
 		if (this.stopped) return;
-		const policies = new Map(this.policies().map((p) => [p.recordPrefix, p]));
-		const collectionPolicies = new Map(
-			this.policies()
-				.filter((p) => p.collectionPrefix)
-				.map((p) => [p.collectionPrefix as string, p]),
-		);
+		const { records: policies, collections: collectionPolicies } =
+			this.policyIndex();
 		const store = this.core.store;
 		for (const key of changed) {
 			const prefix = typeOf(key);

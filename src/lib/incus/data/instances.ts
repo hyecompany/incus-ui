@@ -1037,7 +1037,7 @@ export const instancesDefinition: ResourceDefinition<InstancesNeed> = {
 		return due;
 	},
 
-	plan(needs, ctx) {
+	plan(needs, ctx, forced) {
 		const requests = new Map<string, PlannedRequest<InstancesNeed>>();
 		/** Single-instance fetches, with the needs that asked for them. */
 		const individual = new Map<
@@ -1076,11 +1076,14 @@ export const instancesDefinition: ResourceDefinition<InstancesNeed> = {
 		};
 
 		for (const need of needs) {
+			const force = forced.has(need.key);
 			if (need.kind === "one") {
 				const state = readOne(need, ctx);
-				const object = wantsObjects(need)
-					? state.objectStale || !state.available
-					: !wantsRuntime(need) && state.stale;
+				const object =
+					(force && (wantsObjects(need) || !wantsRuntime(need))) ||
+					(wantsObjects(need)
+						? state.objectStale || !state.available
+						: !wantsRuntime(need) && state.stale);
 				if (object) addTo(individual, need.id, need);
 				if (wantsRuntime(need) && state.exists !== false)
 					addTo(runtime, need.id, need);
@@ -1093,8 +1096,13 @@ export const instancesDefinition: ResourceDefinition<InstancesNeed> = {
 					: wantsObjects(need)
 						? "objects"
 						: "urls";
-			if (!found || found.stale || found.undecided.length > MAX_INDIVIDUAL) {
-				// Membership is unknown, needs validation, or too much is undecided.
+			if (
+				force ||
+				!found ||
+				found.stale ||
+				found.undecided.length > MAX_INDIVIDUAL
+			) {
+				// Refresh requested, membership unknown or needing validation, or too much undecided.
 				list(need, initial);
 				continue;
 			}
@@ -1127,12 +1135,18 @@ export const instancesDefinition: ResourceDefinition<InstancesNeed> = {
 		);
 		const coveredByList = (need: InstancesNeed) =>
 			kept.some((r) => r.covers(need));
+		const plannedFor = (entry: { for: InstancesNeed[] }) =>
+			new Set(entry.for.map((need) => need.key));
 		for (const entry of individual.values()) {
-			if (!entry.for.every(coveredByList)) kept.push(oneRequest(entry.id, ctx));
+			if (!entry.for.every(coveredByList))
+				kept.push({ ...oneRequest(entry.id, ctx), planned: plannedFor(entry) });
 		}
 		for (const entry of runtime.values()) {
 			if (!entry.for.every(coveredByList))
-				kept.push(stateRequest(entry.id, ctx));
+				kept.push({
+					...stateRequest(entry.id, ctx),
+					planned: plannedFor(entry),
+				});
 		}
 		return kept;
 	},
@@ -1348,6 +1362,24 @@ export function createInstancesApi(
 			scope: ProjectScope,
 			criteria: InstanceCriteria = {},
 		) => core.refresh(instanceListNeed(fields, scope, criteria).key),
+		/** Loads a list ahead of its consumer (hover, likely navigation). */
+		prefetchList: (
+			fields: readonly InstanceField[],
+			scope: ProjectScope,
+			criteria: InstanceCriteria = {},
+			holdMs?: number,
+		) =>
+			core.prefetch(
+				instancesDefinition,
+				instanceListNeed(fields, scope, criteria),
+				holdMs,
+			),
+		/** Loads one instance ahead of its consumer. */
+		prefetch: (
+			id: InstanceIdentity,
+			fields: readonly InstanceField[],
+			holdMs?: number,
+		) => core.prefetch(instancesDefinition, instanceNeed(id, fields), holdMs),
 		refresh: (id: InstanceIdentity, fields: readonly InstanceField[]) =>
 			core.refresh(instanceNeed(id, fields).key),
 

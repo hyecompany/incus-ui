@@ -80,6 +80,22 @@ export interface CollectionSnapshot {
 
 type Listener = (changed: ReadonlySet<string>) => void;
 
+/** Store keys (and whole types) a computation read. */
+export class Dependencies {
+	readonly keys = new Set<string>();
+	/** Type prefixes read as a whole (recordsWithPrefix, collectionsWithPrefix). */
+	readonly types = new Set<string>();
+
+	/** Whether any of `changed` could alter what was read. */
+	affectedBy(changed: ReadonlySet<string>): boolean {
+		for (const key of changed) {
+			if (this.keys.has(key)) return true;
+			if (this.types.size > 0 && this.types.has(typeOf(key))) return true;
+		}
+		return false;
+	}
+}
+
 /** The resource type of a key: everything before the first NUL. */
 export const typeOf = (key: string) => key.slice(0, key.indexOf("\0") + 1);
 
@@ -97,24 +113,49 @@ export class ObservationStore {
 	private readonly incoming = new Map<string, Set<string>>();
 	private readonly listeners = new Set<Listener>();
 	private changed: Set<string> | null = null;
+	private tracking: Dependencies | null = null;
+
+	/**
+	 * Runs `work` and records which keys it read, so a consumer can skip
+	 * recomputing when a change touches none of them.
+	 */
+	track<T>(work: () => T): { result: T; deps: Dependencies } {
+		const previous = this.tracking;
+		const deps = new Dependencies();
+		this.tracking = deps;
+		try {
+			return { result: work(), deps };
+		} finally {
+			this.tracking = previous;
+			// Nested tracking: the outer computation read everything the inner one did.
+			if (previous) {
+				for (const key of deps.keys) previous.keys.add(key);
+				for (const type of deps.types) previous.types.add(type);
+			}
+		}
+	}
 
 	record(key: string): ResourceRecord | undefined {
+		this.tracking?.keys.add(key);
 		return this.records.get(key);
 	}
 
 	/** Records of one resource type (`prefix` must be a type prefix ending in NUL). */
 	recordsWithPrefix(prefix: string): ResourceRecord[] {
+		this.tracking?.types.add(prefix);
 		const keys = this.recordIndex.get(prefix);
 		if (!keys) return [];
 		return [...keys].map((key) => this.records.get(key) as ResourceRecord);
 	}
 
 	collection(key: string): CollectionRecord | undefined {
+		this.tracking?.keys.add(key);
 		return this.collections.get(key);
 	}
 
 	/** Collections of one type (`prefix` must be a type prefix ending in NUL). */
 	collectionsWithPrefix(prefix: string): CollectionRecord[] {
+		this.tracking?.types.add(prefix);
 		const keys = this.collectionIndex.get(prefix);
 		if (!keys) return [];
 		return [...keys].map(
@@ -123,16 +164,22 @@ export class ObservationStore {
 	}
 
 	relation(from: string, kind: string): RelationRecord | undefined {
+		this.tracking?.keys.add(relationKey(from, kind));
 		return this.relations.get(relationKey(from, kind));
 	}
 
 	/** Relations of `kind` that point at `target`. */
 	relationsTo(target: string, kind?: string): RelationRecord[] {
+		// Adding or removing a relation to `target` touches `target` itself.
+		this.tracking?.keys.add(target);
 		const keys = this.incoming.get(target);
 		if (!keys) return [];
-		return [...keys]
+		const found = [...keys]
 			.map((key) => this.relations.get(key) as RelationRecord)
 			.filter((r) => kind === undefined || r.kind === kind);
+		if (this.tracking)
+			for (const relation of found) this.tracking.keys.add(relation.key);
+		return found;
 	}
 
 	subscribe(listener: Listener): () => void {

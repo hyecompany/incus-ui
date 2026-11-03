@@ -478,32 +478,40 @@ export const projectsDefinition: ResourceDefinition<ProjectsNeed> = {
 		return !state.available || state.stale;
 	},
 
-	plan(needs, ctx) {
-		const details = new Set<string>();
-		const existence = new Set<string>();
+	plan(needs, ctx, forced) {
+		/** Project name -> keys of the needs that asked for it. */
+		const details = new Map<string, Set<string>>();
+		const existence = new Map<string, Set<string>>();
+		const add = (map: Map<string, Set<string>>, name: string, need: Need) => {
+			const keys = map.get(name) ?? new Set<string>();
+			keys.add(need.key);
+			map.set(name, keys);
+		};
 		let full = false;
 		let names = false;
 		for (const need of needs) {
 			if (need.kind === "one") {
-				(wantsDetails(need) ? details : existence).add(need.name);
+				add(wantsDetails(need) ? details : existence, need.name, need);
 			} else if (!wantsDetails(need)) {
 				names = true;
-			} else if (membershipStale(ctx)) {
+			} else if (forced.has(need.key) || membershipStale(ctx)) {
 				full = true;
 			} else {
-				for (const name of detailTargets(need, ctx)) details.add(name);
+				for (const name of detailTargets(need, ctx)) add(details, name, need);
 			}
 		}
 		if (full || details.size > MAX_INDIVIDUAL) return [listObjectsRequest(ctx)];
 
 		const requests: PlannedRequest<ProjectsNeed>[] = [];
-		for (const name of details) requests.push(oneRequest(name, ctx));
-		const onlyExistence = [...existence].filter((name) => !details.has(name));
+		for (const [name, planned] of details)
+			requests.push({ ...oneRequest(name, ctx), planned });
+		const onlyExistence = [...existence].filter(([name]) => !details.has(name));
 		// The URL list answers existence for every project in one small request.
 		if (names || onlyExistence.length > MAX_INDIVIDUAL) {
 			requests.push(listNamesRequest(ctx));
 		} else {
-			for (const name of onlyExistence) requests.push(oneRequest(name, ctx));
+			for (const [name, planned] of onlyExistence)
+				requests.push({ ...oneRequest(name, ctx), planned });
 		}
 		return requests;
 	},
@@ -665,6 +673,15 @@ export function createProjectsApi(core: DataCore) {
 			settle(watchOne(name, fields)),
 		refreshList: (fields: readonly ProjectField[]) =>
 			core.refresh(projectListNeed(fields).key),
+		/** Loads the list ahead of its consumer (hover, likely navigation). */
+		prefetchList: (fields: readonly ProjectField[], holdMs?: number) =>
+			core.prefetch(projectsDefinition, projectListNeed(fields), holdMs),
+		/** Loads one project ahead of its consumer. */
+		prefetch: (
+			name: string,
+			fields: readonly ProjectField[],
+			holdMs?: number,
+		) => core.prefetch(projectsDefinition, projectNeed(name, fields), holdMs),
 		refresh: (name: string, fields: readonly ProjectField[]) =>
 			core.refresh(projectNeed(name, fields).key),
 

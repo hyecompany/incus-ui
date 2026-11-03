@@ -2,8 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from "react";
+import {
+	LoadingStatus,
+	SkeletonTableRows,
+} from "@/components/loading/skeletons";
 import { Button } from "@/components/ui/button";
 import { useInstances } from "@/hooks/incus/use-instances";
+import { collectionView } from "@/lib/incus/data/loading";
 import type { InstanceStatus } from "@/lib/incus/instances";
 import { cn } from "@/lib/ui/utils";
 
@@ -36,13 +41,19 @@ function Flag({ on, label }: { on: boolean; label: string }) {
 	);
 }
 
+/** Fields the list shows; shared with prefetching so both use one request. */
+export const INSTANCE_LIST_FIELDS = ["status", "type", "location"] as const;
+
 /** Instances in the current project scope, kept live by the data layer. */
 export function InstanceList() {
 	const [filter, setFilter] = useState<InstanceStatus | undefined>(undefined);
-	const result = useInstances(["status", "type", "location"], {
+	const result = useInstances(INSTANCE_LIST_FIELDS, {
 		status: filter,
 	});
 	const rows = result.data ?? [];
+	const view = collectionView(result);
+	const loading =
+		view.kind === "skeleton" || (view.kind === "data" && view.pending > 0);
 
 	return (
 		<section className="flex flex-col gap-3 p-4 lg:p-6">
@@ -64,13 +75,14 @@ export function InstanceList() {
 					<Flag on={result.fetching} label="fetching" />
 				</span>
 			</div>
+			{loading && <LoadingStatus label="Loading instances" />}
 			{result.error && (
 				<p className="rounded-lg border border-destructive/40 px-3 py-2 text-xs text-destructive">
 					{result.error.kind}: {result.error.message}
 				</p>
 			)}
 			<div className="overflow-x-auto rounded-lg border">
-				<table className="w-full text-left text-sm">
+				<table className="w-full text-left text-sm" aria-busy={loading}>
 					<thead className="border-b text-xs text-muted-foreground">
 						<tr>
 							<th className="px-3 py-2 font-medium">Name</th>
@@ -102,25 +114,22 @@ export function InstanceList() {
 								</td>
 							</tr>
 						))}
-						{rows.length === 0 && (
+						{view.kind === "skeleton" && <SkeletonTableRows columns={5} />}
+						{view.kind === "data" && view.pending > 0 && (
+							<SkeletonTableRows
+								columns={5}
+								rows={Math.min(view.pending, 10)}
+							/>
+						)}
+						{(view.kind === "empty" || view.kind === "error") && (
 							<tr>
 								<td
 									colSpan={5}
 									className="px-3 py-6 text-center text-xs text-muted-foreground"
 								>
-									{result.data === undefined
-										? "Loading…"
-										: "No instances match."}
-								</td>
-							</tr>
-						)}
-						{result.missing.length > 0 && (
-							<tr>
-								<td
-									colSpan={5}
-									className="px-3 py-2 text-xs text-muted-foreground"
-								>
-									Loading {result.missing.length} more…
+									{view.kind === "empty"
+										? "No instances match."
+										: "Instances could not be loaded."}
 								</td>
 							</tr>
 						)}

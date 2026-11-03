@@ -40,6 +40,12 @@ export interface DataContext {
 export interface PlannedRequest<N extends Need> {
 	key: string;
 	covers(need: N): boolean;
+	/**
+	 * Keys of the needs this request was planned for. It supplies them even when
+	 * `covers` cannot tell (e.g. resolving an undecided member), so their
+	 * fetching state, errors and backoff stay attached to it.
+	 */
+	planned?: Set<string>;
 	/** Performs the request and returns how to apply it. */
 	run(
 		signal: AbortSignal,
@@ -53,8 +59,15 @@ export interface ResourceDefinition<N extends Need> {
 	applyEvent(event: IncusEvent, ctx: DataContext): void;
 	/** Whether the store cannot yet satisfy `need` as required. */
 	needsFetch(need: N, ctx: DataContext): boolean;
-	/** Chooses requests that supply every need passed in. */
-	plan(needs: readonly N[], ctx: DataContext): PlannedRequest<N>[];
+	/**
+	 * Chooses requests that supply every need passed in. Needs in `forced` must
+	 * be revalidated even if the store looks fresh (an explicit refresh).
+	 */
+	plan(
+		needs: readonly N[],
+		ctx: DataContext,
+		forced: ReadonlySet<string>,
+	): PlannedRequest<N>[];
 	/**
 	 * For facts without suitable events (sampled measurements): when `need` next
 	 * becomes due for a new sample, or null. The core re-plans at that time.
@@ -128,7 +141,14 @@ export class DataCore {
 	>();
 	private readonly forced = new Set<string>();
 	private readonly metaListeners = new Set<() => void>();
-	private journal: { seq: number; event: IncusEvent }[] = [];
+	private readonly retryTimers = new Set<ReturnType<typeof setTimeout>>();
+	/** Events seen while requests were in flight, with the validation they had on arrival. */
+	private journal: {
+		seq: number;
+		event: IncusEvent;
+		validation: Validation;
+	}[] = [];
+	private uncoveredTimer: ReturnType<typeof setInterval> | null = null;
 	private seq = 0;
 	private scheduled = false;
 	private disposed = false;
@@ -177,13 +197,19 @@ export class DataCore {
 		this.definitions.add(definition as unknown as ResourceDefinition<Need>);
 	}
 
-	/** Store, coverage, request and error changes. */
-	subscribe(listener: () => void): () => void {
+	/**
+	 * Store, coverage, request and error changes. Store changes pass the keys
+	 * that changed; everything else passes null (anything may have changed).
+	 */
+	subscribe(
+		listener: (changed: ReadonlySet<string> | null) => void,
+	): () => void {
 		const unsubscribeStore = this.store.subscribe(listener);
-		this.metaListeners.add(listener);
+		const meta = () => listener(null);
+		this.metaListeners.add(meta);
 		return () => {
 			unsubscribeStore();
-			this.metaListeners.delete(listener);
+			this.metaListeners.delete(meta);
 		};
 	}
 
@@ -212,6 +238,25 @@ export class DataCore {
 			entry.refs -= 1;
 			if (entry.refs === 0) this.active.delete(need.key);
 			// In-flight requests finish anyway: they may be shared and their facts are still useful.
+		};
+	}
+
+	/**
+	 * Starts loading `need` ahead of a consumer (hover, likely navigation) and
+	 * keeps it active for `holdMs`, so it is requested and kept current until
+	 * the consumer mounts. Returns a function that ends the hold early.
+	 */
+	prefetch<N extends Need>(
+		definition: ResourceDefinition<N>,
+		need: N,
+		holdMs = 15_000,
+	): () => void {
+		if (this.disposed) return () => undefined;
+		const release = this.activate(definition, need);
+		const timer = setTimeout(release, holdMs);
+		return () => {
+			clearTimeout(timer);
+			release();
 		};
 	}
 
@@ -245,7 +290,7 @@ export class DataCore {
 		for (const flight of this.inFlight.values()) {
 			if (
 				flight.definition === (definition as unknown) &&
-				flight.request.covers(need)
+				supplies(flight.request, need)
 			)
 				return true;
 		}
@@ -355,7 +400,12 @@ export class DataCore {
 			return;
 		}
 		this.seq += 1;
-		if (this.inFlight.size > 0) this.journal.push({ seq: this.seq, event });
+		if (this.inFlight.size > 0)
+			this.journal.push({
+				seq: this.seq,
+				event,
+				validation: this.context.eventValidation(),
+			});
 		this.store.batch(() => {
 			for (const definition of this.definitions) {
 				definition.applyEvent(event, this.context);
@@ -368,6 +418,10 @@ export class DataCore {
 		this.disposed = true;
 		this.operations.clear();
 		if (this.sampleTimer) clearTimeout(this.sampleTimer);
+		if (this.uncoveredTimer) clearInterval(this.uncoveredTimer);
+		this.uncoveredTimer = null;
+		for (const timer of this.retryTimers) clearTimeout(timer);
+		this.retryTimers.clear();
 		for (const flight of this.inFlight.values()) flight.controller.abort();
 		this.inFlight.clear();
 		this.active.clear();
@@ -408,14 +462,29 @@ export class DataCore {
 			list.push(need);
 			byDefinition.set(definition, list);
 		}
+		const forced = new Set(this.forced);
 		this.forced.clear();
 		this.armSampling();
+		this.armUncovered();
 		for (const [definition, needs] of byDefinition) {
-			for (const request of definition.plan(needs, this.context)) {
-				if (this.inFlight.size >= this.maxConcurrent) {
-					return; // The rest is planned again when a request finishes.
+			for (const request of definition.plan(needs, this.context, forced)) {
+				const existing = this.inFlight.get(request.key);
+				if (existing) {
+					// Same request already running: it now also serves these needs.
+					if (request.planned) {
+						existing.request.planned ??= new Set();
+						for (const key of request.planned)
+							existing.request.planned.add(key);
+						this.emitMeta();
+					}
+					continue;
 				}
-				if (!this.inFlight.has(request.key)) this.dispatch(definition, request);
+				if (this.inFlight.size >= this.maxConcurrent) {
+					// Planned again when a request finishes; keep the explicit refreshes.
+					for (const key of forced) this.forced.add(key);
+					return;
+				}
+				this.dispatch(definition, request);
 			}
 		}
 	}
@@ -442,6 +511,31 @@ export class DataCore {
 		);
 	}
 
+	/**
+	 * Without event coverage, facts expire after uncoveredTtlMs and nothing else
+	 * would notice. While anything is watched, re-check periodically so expired
+	 * facts are reported stale and revalidated.
+	 */
+	private armUncovered(): void {
+		const needed =
+			this.coverageState.state === "unavailable" && this.active.size > 0;
+		if (needed === (this.uncoveredTimer !== null)) return;
+		if (!needed) {
+			clearInterval(this.uncoveredTimer as ReturnType<typeof setInterval>);
+			this.uncoveredTimer = null;
+			return;
+		}
+		this.uncoveredTimer = setInterval(
+			() => {
+				this.emitMeta();
+				this.schedule();
+			},
+			Math.max(250, this.uncoveredTtlMs / 2),
+		);
+		// Never keeps a Node process (tests, SSR) alive on its own.
+		(this.uncoveredTimer as { unref?: () => void }).unref?.();
+	}
+
 	private dispatch(
 		definition: ResourceDefinition<Need>,
 		request: PlannedRequest<Need>,
@@ -466,11 +560,13 @@ export class DataCore {
 				this.inFlight.delete(request.key);
 				this.store.batch(() => {
 					apply(this.context, validation);
-					// Events that arrived while the request was in flight win.
+					// Events that arrived while the request was in flight win, with the
+					// validation they had then: a reconnect since must not make them fresh.
 					for (const entry of this.journal) {
 						if (entry.seq > flight.journalStart) {
+							const ctx = this.replayContext(entry.validation);
 							for (const def of this.definitions)
-								def.applyEvent(entry.event, this.context);
+								def.applyEvent(entry.event, ctx);
 						}
 					}
 				});
@@ -491,10 +587,12 @@ export class DataCore {
 					const delay = this.retryDelay(failure);
 					if (delay !== null) {
 						// The timer itself makes the retry due (independent of now()).
-						setTimeout(() => {
+						const timer = setTimeout(() => {
+							this.retryTimers.delete(timer);
 							failure.due = true;
 							this.schedule();
 						}, delay);
+						this.retryTimers.add(timer);
 					}
 				}
 			})
@@ -532,7 +630,14 @@ export class DataCore {
 		return [...this.active.values()]
 			.filter((entry) => entry.definition === flight.definition)
 			.map((entry) => entry.need)
-			.filter((need) => flight.request.covers(need));
+			.filter((need) => supplies(flight.request, need));
+	}
+
+	/** The context as it was when a journaled event arrived. */
+	private replayContext(validation: Validation): DataContext {
+		return Object.create(this.context, {
+			eventValidation: { value: () => ({ ...validation }) },
+		}) as DataContext;
 	}
 
 	private trimJournal(): void {
@@ -549,4 +654,8 @@ export class DataCore {
 	private emitMeta(): void {
 		for (const listener of [...this.metaListeners]) listener();
 	}
+}
+
+function supplies(request: PlannedRequest<Need>, need: Need): boolean {
+	return request.planned?.has(need.key) === true || request.covers(need);
 }

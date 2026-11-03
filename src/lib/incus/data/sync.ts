@@ -8,6 +8,16 @@ import type {
 	Validation,
 } from "./store.ts";
 
+/**
+ * A random tab identifier. crypto.randomUUID() exists only in secure contexts
+ * (HTTPS or localhost); getRandomValues() works over plain HTTP too.
+ */
+function randomId(): string {
+	if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+	const bytes = crypto.getRandomValues(new Uint8Array(16));
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /** The subset of BroadcastChannel used here (injectable for tests). */
 export interface ChannelLike {
 	postMessage(message: unknown): void;
@@ -61,7 +71,7 @@ export class TabSync {
 	) {
 		this.core = core;
 		this.channel = channel;
-		this.tabId = options.tabId ?? crypto.randomUUID();
+		this.tabId = options.tabId ?? randomId();
 		this.generation = options.generation ?? (() => 0);
 	}
 
