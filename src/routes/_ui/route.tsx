@@ -10,6 +10,7 @@ import { IncusSessionEventsProvider } from "@/components/providers/events-provid
 import { ProjectScopeProvider } from "@/components/providers/project-scope-provider";
 import { IncusSessionProvider } from "@/components/providers/session-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Toaster, ToastProvider } from "@/components/ui/toast";
 
 export const Route = createFileRoute("/_ui")({
 	component: RouteComponent,
@@ -17,29 +18,32 @@ export const Route = createFileRoute("/_ui")({
 
 function RouteComponent() {
 	return (
-		<ProjectScopeProvider>
-			<IncusSessionProvider>
-				<IncusSessionEventsProvider>
-					<IncusDataProvider>
-						<EventToasts />
-						<SidebarProvider
-							defaultOpen={false}
-							style={
-								{
-									"--header-height": "calc(var(--spacing) * 12)", // Maybe increase back to 12 (Hye Ararat)
-								} as React.CSSProperties
-							}
-						>
-							<UiSidebar />
-							<SidebarInset>
-								<View>
-									<Outlet />
-								</View>
-							</SidebarInset>
-						</SidebarProvider>
-					</IncusDataProvider>
-				</IncusSessionEventsProvider>
-			</IncusSessionProvider>
-		</ProjectScopeProvider>
+		<ToastProvider>
+			<ProjectScopeProvider>
+				<IncusSessionProvider>
+					<IncusSessionEventsProvider>
+						<IncusDataProvider>
+							<EventToasts />
+							<Toaster />
+							<SidebarProvider
+								defaultOpen={false}
+								style={
+									{
+										"--header-height": "calc(var(--spacing) * 12)", // Maybe increase back to 12 (Hye Ararat)
+									} as React.CSSProperties
+								}
+							>
+								<UiSidebar />
+								<SidebarInset>
+									<View>
+										<Outlet />
+									</View>
+								</SidebarInset>
+							</SidebarProvider>
+						</IncusDataProvider>
+					</IncusSessionEventsProvider>
+				</IncusSessionProvider>
+			</ProjectScopeProvider>
+		</ToastProvider>
 	);
 }

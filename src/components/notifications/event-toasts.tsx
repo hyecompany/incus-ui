@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef } from "react";
-import { Toaster, toast } from "sonner";
+import { type ToastTone, toastManager } from "@/components/ui/toast";
 import {
 	useEventsStatus,
 	useIncusEvents,
@@ -15,26 +15,51 @@ import {
 import { ALL_PROJECTS } from "@/lib/incus/project-scope";
 
 const CONNECTION_TOAST = "events:connection";
+/** Timeout 0 keeps a toast until it is replaced or dismissed. */
+const STICKY = 0;
+const DEFAULT_TIMEOUT = 4_000;
+const ERROR_TIMEOUT = 10_000;
 
-function show(notice: Notice) {
-	const options = { id: notice.id, description: notice.description };
-	switch (notice.tone) {
+function timeoutFor(tone: ToastTone): number {
+	switch (tone) {
 		case "loading":
-			toast.loading(notice.title, options);
-			return;
-		case "success":
-			toast.success(notice.title, options);
-			return;
+			return STICKY;
 		case "error":
-			toast.error(notice.title, { ...options, duration: 10_000 });
-			return;
-		case "info":
-			toast.info(notice.title, options);
-			return;
+			return ERROR_TIMEOUT;
+		default:
+			return DEFAULT_TIMEOUT;
 	}
 }
 
-/** Toasts for operations and resource changes across all projects. */
+interface ShowOptions {
+	/** Same id as an existing toast updates it in place. */
+	id: string;
+	tone: ToastTone;
+	title: string;
+	description?: string;
+	timeout?: number;
+}
+
+function show({ id, tone, title, description, timeout }: ShowOptions) {
+	toastManager.add({
+		id,
+		type: tone,
+		title,
+		description,
+		timeout: timeout ?? timeoutFor(tone),
+	});
+}
+
+function showNotice(notice: Notice) {
+	show({
+		id: notice.id,
+		tone: notice.tone,
+		title: notice.title,
+		description: notice.description,
+	});
+}
+
+/** Toasts for operations and resource changes across all projects. Renders nothing; see `Toaster`. */
 export function EventToasts() {
 	const running = useRef(new Set<string>());
 
@@ -49,28 +74,34 @@ export function EventToasts() {
 			if (!notice) return;
 			if (notice.tone === "loading") running.current.add(notice.id);
 			else running.current.delete(notice.id);
-			show(notice);
+			showNotice(notice);
 		},
 		onInterrupted: () => {
-			toast.warning("Live updates interrupted", {
+			show({
 				id: CONNECTION_TOAST,
+				tone: "warning",
+				title: "Live updates interrupted",
 				description: "Reconnecting to Incus…",
-				duration: Number.POSITIVE_INFINITY,
+				timeout: STICKY,
 			});
 		},
 		onRecovery: () => {
 			// Events are not replayed, so running operations may have finished meanwhile.
 			for (const id of running.current) {
-				toast.info("Operation status unknown", {
+				show({
 					id,
+					tone: "info",
+					title: "Operation status unknown",
 					description: "Live updates were interrupted; check its result.",
 				});
 			}
 			running.current.clear();
-			toast.success("Live updates restored", {
+			show({
 				id: CONNECTION_TOAST,
+				tone: "success",
+				title: "Live updates restored",
 				description: "Refreshing anything that changed meanwhile.",
-				duration: 4_000,
+				timeout: 4_000,
 			});
 		},
 	});
@@ -78,24 +109,18 @@ export function EventToasts() {
 	const status = useEventsStatus(ALL_PROJECTS);
 	useEffect(() => {
 		if (status.state === "failed") {
-			toast.error("Live updates unavailable", {
+			show({
 				id: CONNECTION_TOAST,
+				tone: "error",
+				title: "Live updates unavailable",
 				description:
 					status.lastError?.kind === "forbidden"
 						? "This session is not allowed to receive events."
 						: "Could not reconnect to Incus. Reload to try again.",
-				duration: Number.POSITIVE_INFINITY,
+				timeout: STICKY,
 			});
 		}
 	}, [status.state, status.lastError?.kind]);
 
-	return (
-		<Toaster
-			theme="dark"
-			position="bottom-right"
-			richColors
-			closeButton
-			visibleToasts={5}
-		/>
-	);
+	return null;
 }
