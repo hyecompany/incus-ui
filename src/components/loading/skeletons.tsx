@@ -13,43 +13,6 @@ const WIDTHS = ["w-24", "w-16", "w-20", "w-14", "w-28", "w-12"];
  */
 const DELAYED = "animate-in fade-in fill-mode-backwards delay-150 duration-300";
 
-/** Placeholder rows for a table body while its rows are unknown. */
-export function SkeletonTableRows({
-	rows = 5,
-	columns,
-	className,
-}: {
-	rows?: number;
-	columns: number;
-	className?: string;
-}) {
-	return (
-		<>
-			{Array.from({ length: rows }, (_, row) => (
-				<tr
-					// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-					key={row}
-					aria-hidden
-					data-slot="skeleton-row"
-					className={cn(DELAYED, className)}
-				>
-					{Array.from({ length: columns }, (_, column) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-						<td key={column} className="px-3 py-2">
-							<Skeleton
-								className={cn(
-									"h-4",
-									WIDTHS[(row + column * 2) % WIDTHS.length],
-								)}
-							/>
-						</td>
-					))}
-				</tr>
-			))}
-		</>
-	);
-}
-
 /** Placeholder lines for a list or menu while its items are unknown. */
 export function SkeletonList({
 	items = 3,

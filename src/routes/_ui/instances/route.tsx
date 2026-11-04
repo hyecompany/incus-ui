@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createFileRoute } from "@tanstack/react-router";
-import { EventsDebugPanel } from "@/components/debug/events-debug-panel";
-import { InstanceList } from "@/components/instances/instance-list";
 import Header from "@/components/layout/view";
 import {
 	Breadcrumb,
@@ -18,18 +16,14 @@ export const Route = createFileRoute("/_ui/instances")({
 
 function RouteComponent() {
 	return (
-		<>
-			<Header>
-				<Breadcrumb>
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<BreadcrumbLink>Instances</BreadcrumbLink>
-						</BreadcrumbItem>
-					</BreadcrumbList>
-				</Breadcrumb>
-			</Header>
-			<InstanceList />
-			<EventsDebugPanel />
-		</>
+		<Header>
+			<Breadcrumb>
+				<BreadcrumbList>
+					<BreadcrumbItem>
+						<BreadcrumbLink>Instances</BreadcrumbLink>
+					</BreadcrumbItem>
+				</BreadcrumbList>
+			</Breadcrumb>
+		</Header>
 	);
 }
