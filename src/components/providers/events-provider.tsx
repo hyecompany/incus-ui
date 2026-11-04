@@ -7,6 +7,7 @@ import {
 	useContext,
 	useEffect,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import { useIncusSession } from "@/components/providers/session-provider";
 import { createBrowserSocket, IncusEventsManager } from "@/lib/incus/events";
@@ -14,6 +15,27 @@ import { createBrowserSocket, IncusEventsManager } from "@/lib/incus/events";
 export const IncusEventsContext = createContext<IncusEventsManager | null>(
 	null,
 );
+
+// The active manager, for consumers outside the provider tree (devtools).
+let activeManager: IncusEventsManager | null = null;
+const activeListeners = new Set<() => void>();
+
+function setActiveManager(manager: IncusEventsManager | null) {
+	activeManager = manager;
+	for (const listener of activeListeners) listener();
+}
+
+function subscribeActiveManager(listener: () => void) {
+	activeListeners.add(listener);
+	return () => {
+		activeListeners.delete(listener);
+	};
+}
+
+/** The session's events manager from anywhere in the app, including devtools. */
+export function useActiveEventsManager(): IncusEventsManager | null {
+	return useSyncExternalStore(subscribeActiveManager, () => activeManager);
+}
 
 /** Owns one IncusEventsManager per session key. */
 export function IncusEventsProvider({
@@ -34,9 +56,11 @@ export function IncusEventsProvider({
 			origin: window.location.origin,
 		});
 		setManager(next);
+		setActiveManager(next);
 		return () => {
 			next.dispose();
 			setManager(null);
+			if (activeManager === next) setActiveManager(null);
 		};
 	}, [sessionKey]);
 

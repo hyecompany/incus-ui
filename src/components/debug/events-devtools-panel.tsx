@@ -2,24 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRef, useState } from "react";
-import { useEventsManager } from "@/components/providers/events-provider";
+import {
+	IncusEventsContext,
+	useActiveEventsManager,
+} from "@/components/providers/events-provider";
 import { Button } from "@/components/ui/button";
 import {
 	useEventsStatus,
 	useIncusEvents,
 } from "@/hooks/incus/use-incus-events";
-import { useProjectScope } from "@/hooks/incus/use-project-scope";
+import type { IncusEventsManager } from "@/lib/incus/events";
 import {
 	INCUS_EVENT_TYPES,
 	type IncusEvent,
 	type IncusEventType,
 	type ScopeStatus,
 } from "@/lib/incus/events";
-import {
-	ALL_PROJECTS,
-	type ProjectScope,
-	projectScopeKey,
-} from "@/lib/incus/project-scope";
+import { ALL_PROJECTS } from "@/lib/incus/project-scope";
 import { parseResourceChange } from "@/lib/incus/resource-events";
 import { cn } from "@/lib/ui/utils";
 
@@ -104,11 +103,11 @@ function StatusBadge({
 	status: ScopeStatus;
 }) {
 	return (
-		<div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
+		<div className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
 			<span className="font-medium">{label}</span>
 			<span
 				className={cn(
-					"rounded-md px-1.5 py-0.5 font-mono",
+					"rounded px-1.5 py-0.5 font-mono",
 					STATE_STYLES[status.state],
 				)}
 			>
@@ -124,12 +123,22 @@ function StatusBadge({
 	);
 }
 
-/** Debug view of event connections and a bounded in-memory event feed. */
-export function EventsDebugPanel() {
-	const manager = useEventsManager();
-	const { scope: headerScope } = useProjectScope();
-	const [followHeader, setFollowHeader] = useState(false);
-	const scope: ProjectScope = followHeader ? headerScope : ALL_PROJECTS;
+/**
+ * TanStack devtools panel for Incus event connections and a bounded in-memory
+ * event feed. The devtools shell renders outside the session providers, so the
+ * active events manager is re-provided here.
+ */
+export function EventsDevtoolsPanel() {
+	const manager = useActiveEventsManager();
+	return (
+		<IncusEventsContext.Provider value={manager}>
+			<EventsFeed manager={manager} />
+		</IncusEventsContext.Provider>
+	);
+}
+
+function EventsFeed({ manager }: { manager: IncusEventsManager | null }) {
+	const scope = ALL_PROJECTS;
 	const [types, setTypes] = useState<IncusEventType[]>([...INCUS_EVENT_TYPES]);
 	const [rows, setRows] = useState<Row[]>([]);
 	const [paused, setPaused] = useState(false);
@@ -183,30 +192,24 @@ export function EventsDebugPanel() {
 		);
 
 	return (
-		<div className="flex flex-col gap-4 p-4 lg:p-6">
-			<div className="flex flex-wrap items-center gap-2">
-				<h2 className="mr-2 text-sm font-semibold">Events debug</h2>
-				<span className="rounded-md border px-2 py-1 font-mono text-xs">
-					scope: {projectScopeKey(scope)}
-				</span>
-				<label className="flex items-center gap-1.5 text-xs">
-					<input
-						type="checkbox"
-						checked={followHeader}
-						onChange={() => setFollowHeader((f) => !f)}
-					/>
-					follow header project
-				</label>
+		<div className="flex flex-col gap-3 p-2 text-sm">
+			<div className="flex flex-wrap items-center gap-2 text-xs">
 				<span
 					className={cn(
-						"rounded-md px-2 py-1 text-xs",
+						"rounded-md px-2 py-1",
 						manager
 							? "bg-emerald-500/15 text-emerald-500"
 							: "bg-destructive/15 text-destructive",
 					)}
 				>
-					{manager ? "session: trusted" : "session: none (no manager)"}
+					{manager ? "session: connected" : "session: not connected"}
 				</span>
+				{!manager && (
+					<span className="text-muted-foreground">
+						No events manager in context. Events are only visible while the UI
+						session is mounted.
+					</span>
+				)}
 			</div>
 
 			<div className="flex flex-wrap gap-2">
@@ -240,15 +243,15 @@ export function EventsDebugPanel() {
 				</div>
 			</div>
 
-			<div className="overflow-hidden rounded-lg border">
+			<div className="overflow-hidden rounded-md border">
 				{rows.length === 0 ? (
-					<p className="p-4 text-xs text-muted-foreground">
+					<p className="p-3 text-xs text-muted-foreground">
 						No events yet. Start/stop an instance or run e.g.{" "}
 						<code>incus config set &lt;instance&gt; user.debug=1</code> to emit
 						a lifecycle event.
 					</p>
 				) : (
-					<ul className="divide-y font-mono text-xs">
+					<ul className="max-h-96 divide-y overflow-y-auto font-mono text-xs">
 						{rows.map((row) =>
 							row.kind === "notice" ? (
 								<li
