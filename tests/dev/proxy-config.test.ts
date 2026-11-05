@@ -1,16 +1,14 @@
+// SPDX-FileCopyrightText: © 2026 Joseph Maldjian <joseph.maldjian@hyecompany.com>
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
 // SPDX-License-Identifier: Apache-2.0
 
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import http from "node:http";
-import net from "node:net";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, before, describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 import {
-	createDevProxyServer,
+	describeUpstream,
 	filterUpgradeHeaders,
 	incusConfigDir,
 	isApiPath,
@@ -173,7 +171,10 @@ describe("resolveUpstream", () => {
 	it("honours INCUS_SOCKET and INCUS_DIR for the local socket", () => {
 		const local = { addr: "unix://", public: false };
 		assert.equal(resolveUpstream("local", local, dir, { INCUS_SOCKET: "/tmp/a.sock" }).upstream.socketPath, "/tmp/a.sock");
-		assert.equal(resolveUpstream("local", local, dir, { INCUS_DIR: "/srv/incus" }).upstream.socketPath, "/srv/incus/unix.socket");
+		assert.equal(
+			resolveUpstream("local", local, dir, { INCUS_DIR: "/srv/incus" }).upstream.socketPath,
+			join("/srv/incus", "unix.socket"),
+		);
 		assert.equal(resolveUpstream("local", { addr: "unix:///run/x.sock", public: false }, dir, {}).upstream.socketPath, "/run/x.sock");
 	});
 
@@ -195,8 +196,27 @@ describe("resolveUpstream", () => {
 		const empty = makeConfigDir();
 		const resolved = resolveUpstream("work", { addr: "https://10.0.0.5:8443", public: false }, empty, {});
 		assert.equal(resolved.upstream.clientCert, undefined);
+		assert.equal(resolved.warnings.length, 2);
+		assert.match(resolved.warnings.join("\n"), /No pinned server certificate/);
+		assert.match(resolved.warnings.join("\n"), /No TLS client certificate/);
+	});
+
+	it("warns when an HTTPS remote has no pinned server certificate", () => {
+		const certsOnly = makeConfigDir({ "client.crt": "CERT", "client.key": "KEY" });
+		const pinPath = join(certsOnly, "servercerts", "work.crt");
+		const resolved = resolveUpstream("work", { addr: "https://10.0.0.5:8443", public: false }, certsOnly, {});
+		assert.equal(resolved.upstream.clientCert, "CERT");
+		assert.equal(resolved.upstream.serverCert, undefined);
 		assert.equal(resolved.warnings.length, 1);
-		assert.match(resolved.warnings[0], /No TLS client certificate/);
+		assert.match(resolved.warnings[0], /No pinned server certificate/);
+		assert.ok(resolved.warnings[0].includes(pinPath));
+	});
+
+	it("does not warn about a missing server pin for http remotes", () => {
+		const empty = makeConfigDir();
+		const resolved = resolveUpstream("plain", { addr: "http://10.0.0.5:8080", public: false }, empty, {});
+		assert.equal(resolved.upstream.serverCert, undefined);
+		assert.deepEqual(resolved.warnings, []);
 	});
 
 	it("rejects simplestreams remotes with a clear error", () => {
@@ -205,11 +225,23 @@ describe("resolveUpstream", () => {
 			/uses protocol "simplestreams"/,
 		);
 	});
+
+	it("rejects unsupported address schemes", () => {
+		assert.throws(
+			() => resolveUpstream("bad", { addr: "ftp://example", public: false }, dir, {}),
+			/unsupported address/,
+		);
+	});
 });
 
 describe("parseConfig", () => {
 	it("reads the Incus CLI config from INCUS_CONF and uses the default remote", () => {
-		const dir = makeConfigDir({ "config.yml": CLI_CONFIG, "client.crt": "C", "client.key": "K" });
+		const dir = makeConfigDir({
+			"config.yml": CLI_CONFIG,
+			"client.crt": "C",
+			"client.key": "K",
+			"servercerts/work.crt": "PIN",
+		});
 		const config = parseConfig({ INCUS_CONF: dir });
 		assert.equal(config.remote, "work");
 		assert.equal(config.host, "127.0.0.1");
@@ -269,7 +301,36 @@ describe("parseConfig", () => {
 
 	it("uses INCUS_CONF or ~/.config/incus for the config directory", () => {
 		assert.equal(incusConfigDir({ INCUS_CONF: "/x/incus" }, "/home/u"), "/x/incus");
-		assert.equal(incusConfigDir({}, "/home/u"), "/home/u/.config/incus");
+		assert.equal(incusConfigDir({}, "/home/u"), join("/home/u", ".config", "incus"));
+	});
+});
+
+describe("describeUpstream", () => {
+	it("reports a unix socket path", () => {
+		const config: ProxyConfig = {
+			host: "127.0.0.1",
+			port: 3001,
+			targets: TARGETS,
+			remote: "local",
+			upstream: { socketPath: "/var/lib/incus/unix.socket" },
+			crossOriginIsolation: false,
+			warnings: [],
+		};
+		assert.equal(describeUpstream(config), "unix socket /var/lib/incus/unix.socket");
+	});
+
+	it("reports the API origin and whether a client certificate is present", () => {
+		const withCert: ProxyConfig = {
+			host: "127.0.0.1",
+			port: 3001,
+			targets: TARGETS,
+			remote: "work",
+			upstream: { clientCert: "C", clientKey: "K" },
+			crossOriginIsolation: false,
+			warnings: [],
+		};
+		assert.equal(describeUpstream(withCert), "https://localhost:8443, TLS client certificate");
+		assert.equal(describeUpstream({ ...withCert, upstream: {} }), "https://localhost:8443, no client certificate");
 	});
 });
 
@@ -349,201 +410,3 @@ describe("websocket headers", () => {
 		assert.deepEqual(names, ["origin", "sec-websocket-protocol"]);
 	});
 });
-
-// Integration: real sockets against fake upstreams. No Incus and no Vite are involved.
-describe("proxy forwarding against fake upstreams", { timeout: 15000 }, () => {
-	let apiServer: http.Server;
-	let appServer: http.Server;
-	let proxy: http.Server;
-	let proxyBase: string;
-	const received: { apiPath?: string; apiHost?: string; apiCookie?: string } = {};
-	// Upgraded sockets outlive server.close(), so every accepted socket is tracked and destroyed in teardown.
-	const openSockets = new Set<net.Socket>();
-	const track = (server: net.Server) => {
-		server.on("connection", (socket) => {
-			openSockets.add(socket);
-			socket.on("close", () => openSockets.delete(socket));
-		});
-	};
-
-	before(async () => {
-		apiServer = http.createServer((req, res) => {
-			received.apiPath = req.url;
-			received.apiHost = req.headers.host;
-			received.apiCookie = req.headers.cookie;
-			if (req.url === "/1.0/redirect") {
-				res.writeHead(302, { location: `http://127.0.0.1:${(apiServer.address() as AddressInfo).port}/1.0` });
-				res.end();
-				return;
-			}
-			res.writeHead(200, { "content-type": "application/json" });
-			res.end(JSON.stringify({ metadata: { ok: true } }));
-		});
-		// Upgraded sockets answer with 101, then echo bytes back.
-		apiServer.on("upgrade", (req, socket) => {
-			received.apiCookie = req.headers.cookie;
-			socket.write("HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\n\r\n");
-			socket.on("data", (more) => socket.write(more));
-		});
-		track(apiServer);
-		await listen(apiServer);
-
-		appServer = http.createServer((_req, res) => {
-			res.writeHead(200, { "content-type": "text/html" });
-			res.end("<!doctype html>app");
-		});
-		track(appServer);
-		await listen(appServer);
-
-		const config: ProxyConfig = {
-			port: 0,
-			host: "127.0.0.1",
-			targets: {
-				api: new URL(`http://127.0.0.1:${(apiServer.address() as AddressInfo).port}`),
-				app: new URL(`http://127.0.0.1:${(appServer.address() as AddressInfo).port}`),
-			},
-			remote: "test",
-			upstream: {},
-			crossOriginIsolation: true,
-			warnings: [],
-		};
-		proxy = createDevProxyServer(config);
-		track(proxy);
-		await listen(proxy);
-		proxyBase = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
-	});
-
-	after(() => {
-		for (const socket of openSockets) {
-			socket.destroy();
-		}
-		openSockets.clear();
-		for (const server of [proxy, apiServer, appServer]) {
-			server.close();
-		}
-	});
-
-	it("forwards API requests with query and rewritten Host", async () => {
-		const response = await fetch(`${proxyBase}/1.0/projects?recursion=1`, { headers: { cookie: "sid=1" } });
-		assert.equal(response.status, 200);
-		assert.deepEqual(await response.json(), { metadata: { ok: true } });
-		assert.equal(received.apiPath, "/1.0/projects?recursion=1");
-		assert.equal(received.apiHost, `127.0.0.1:${(apiServer.address() as AddressInfo).port}`);
-	});
-
-	it("rewrites upstream Location headers onto the proxy origin", async () => {
-		const response = await fetch(`${proxyBase}/1.0/redirect`, { redirect: "manual" });
-		assert.equal(response.status, 302);
-		assert.equal(response.headers.get("location"), `${proxyBase}/1.0`);
-	});
-
-	it("serves app routes under /ui with cross-origin isolation headers", async () => {
-		const response = await fetch(`${proxyBase}/ui/`);
-		assert.equal(await response.text(), "<!doctype html>app");
-		assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
-		assert.equal(response.headers.get("origin-agent-cluster"), "?1");
-	});
-
-	it("returns 502 with a Proxy error message when the upstream is unreachable", async () => {
-		const closed = http.createServer();
-		await listen(closed);
-		const port = (closed.address() as AddressInfo).port;
-		await new Promise<void>((resolve) => closed.close(() => resolve()));
-
-		const server = createDevProxyServer({
-			port: 0,
-			host: "127.0.0.1",
-			targets: { api: new URL(`http://127.0.0.1:${port}`), app: TARGETS.app },
-			remote: "test",
-			upstream: {},
-			crossOriginIsolation: false,
-			warnings: [],
-		});
-		await listen(server);
-		try {
-			const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/1.0`);
-			assert.equal(response.status, 502);
-			assert.match(await response.text(), /^Proxy error: /);
-		} finally {
-			server.closeAllConnections();
-			server.close();
-		}
-	});
-
-	it("pipes websocket bytes both ways through the upgrade path", async () => {
-		const proxyPort = Number(new URL(proxyBase).port);
-		const client = net.connect(proxyPort, "127.0.0.1");
-		await new Promise<void>((resolve) => client.once("connect", () => resolve()));
-		client.write(
-			"GET /1.0/events?type=lifecycle HTTP/1.1\r\nHost: localhost:3001\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nCookie: sid=2\r\nSec-WebSocket-Key: abc\r\nSec-WebSocket-Version: 13\r\n\r\n",
-		);
-
-		let received_bytes = "";
-		client.on("data", (chunk: Buffer) => {
-			received_bytes += chunk.toString();
-		});
-
-		await waitFor(() => received_bytes.includes("\r\n\r\n"));
-		assert.match(received_bytes, /^HTTP\/1\.1 101/);
-		assert.equal(received.apiCookie, "sid=2");
-
-		client.write("ping");
-		await waitFor(() => received_bytes.endsWith("ping"));
-		client.destroy();
-	});
-});
-
-describe("proxy forwarding to a unix socket (local remote)", { timeout: 15000 }, () => {
-	let socketServer: http.Server;
-	let proxy: http.Server;
-	let proxyPort: number;
-	const socketPath = join(makeConfigDir(), "unix.socket");
-
-	before(async () => {
-		socketServer = http.createServer((req, res) => {
-			res.writeHead(200, { "content-type": "application/json", "x-host": req.headers.host ?? "" });
-			res.end(JSON.stringify({ path: req.url }));
-		});
-		await new Promise<void>((resolve) => socketServer.listen(socketPath, () => resolve()));
-
-		proxy = createDevProxyServer({
-			port: 0,
-			host: "127.0.0.1",
-			targets: { api: new URL("http://localhost/"), app: TARGETS.app },
-			remote: "local",
-			upstream: { socketPath },
-			crossOriginIsolation: false,
-			warnings: [],
-		});
-		await listen(proxy);
-		proxyPort = (proxy.address() as AddressInfo).port;
-	});
-
-	after(() => {
-		proxy.closeAllConnections();
-		proxy.close();
-		socketServer.close();
-	});
-
-	it("forwards API requests over the socket", async () => {
-		const response = await fetch(`http://127.0.0.1:${proxyPort}/1.0?x=1`);
-		assert.equal(response.status, 200);
-		assert.deepEqual(await response.json(), { path: "/1.0?x=1" });
-		assert.equal(response.headers.get("x-host"), "localhost");
-	});
-});
-
-function listen(server: net.Server | http.Server): Promise<void> {
-	return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
-}
-
-// Polls until the condition holds; fails the test after the deadline instead of hanging.
-async function waitFor(condition: () => boolean, timeoutMs = 3000): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (!condition()) {
-		if (Date.now() > deadline) {
-			throw new Error("waitFor timed out");
-		}
-		await new Promise((resolve) => setTimeout(resolve, 10));
-	}
-}

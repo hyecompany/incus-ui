@@ -8,6 +8,7 @@
     "generate-routes": "tsr generate",
     "generate:incus-types": "node scripts/generate-incus-types.mjs",
     "test:incus": "node --experimental-strip-types --test tests/incus/*.test.ts",
+    "test:dev": "node --experimental-strip-types --test tests/dev/*.test.ts",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview",
