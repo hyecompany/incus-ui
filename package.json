@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "node --experimental-strip-types scripts/incus-dev-proxy.ts",
+    "dev:vite": "vite dev --port 3000",
     "generate-routes": "tsr generate",
     "generate:incus-types": "node scripts/generate-incus-types.mjs",
     "test:incus": "node --experimental-strip-types --test tests/incus/*.test.ts",
+    "test:dev": "node --experimental-strip-types --test tests/dev/*.test.ts",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview",
@@ -44,6 +46,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
+    "fake-indexeddb": "^6.2.7",
     "typescript": "^6.0.2",
     "vite": "^8.0.0"
   },

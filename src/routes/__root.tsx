@@ -9,6 +9,7 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { EventsDevtoolsPanel } from "@/components/debug/events-devtools-panel";
 
 import "../styles.css";
 
@@ -28,17 +29,23 @@ function RootDocument() {
 		<>
 			<HeadContent />
 			<Outlet />
-			<TanStackDevtools
-				config={{
-					position: "bottom-right",
-				}}
-				plugins={[
-					{
-						name: "Tanstack Router",
-						render: <TanStackRouterDevtoolsPanel />,
-					},
-				]}
-			/>
+			{import.meta.env.DEV && (
+				<TanStackDevtools
+					config={{
+						position: "bottom-right",
+					}}
+					plugins={[
+						{
+							name: "Tanstack Router",
+							render: <TanStackRouterDevtoolsPanel />,
+						},
+						{
+							name: "Incus Events",
+							render: <EventsDevtoolsPanel />,
+						},
+					]}
+				/>
+			)}
 			<Scripts />
 		</>
 	);
