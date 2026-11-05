@@ -33,11 +33,13 @@ SPDX-SnippetCopyrightText: 2026 Stéphane Graber <stgraber@stgraber.org>
 ## Codebase Contributions
 Contributions to the codebase should be submitted through [pull requests on our GitHub](https://github.com/lxc/incus-ui/pulls). From there they will go through review and once approved, be merged in the main branch.
 
-To run the UI against a local Incus server while developing, follow the [development proxy guide](/docs/contributing/development-proxy.md). It explains `npm run dev` and how the proxy picks the Incus remote from your Incus CLI configuration.
 
 If you'd like to contribute to the codebase but don't know what to start with, tackling any [unassigned, open issues](https://github.com/lxc/incus-ui/issues?q=is%3Aissue%20state%3Aopen%20no%3Aassignee) is extremely appreciated!
 
 If you'd like to make a code contribution that is licensed differently from the rest of the project (the [Apache License, Version 2.0](/LICENSE)), follow the [Differential Code Contribution Part Guidelines](/docs/contributing/code/differential-part-guidelines.md). Follow the [REUSE Specification](https://reuse.software/spec-3.3/) to attribute the appropriate license & copyright information to your contribution.
+
+### Development Environment
+See the [development environment documentation](./docs/contributing/code/development-environment.md) for setup information.
 
 ### Commits
 #### Message Structure
