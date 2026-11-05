@@ -8,21 +8,20 @@ SPDX-SnippetBegin
 SPDX-SnippetCopyrightText: © 2026 Joseph Maldjian <joseph.maldjian@hyecompany.com>
 -->
 # Developer Environment
-## Setup
-### Pre-requisites
+## Pre-requisites
 - An active release of [Node.js](https://nodejs.org/en)
 - The [Incus CLI client](https://linuxcontainers.org/incus/docs/main/installing/) with your [remote](https://linuxcontainers.org/incus/docs/main/remotes/) configured.
 <!-- 
 SPDX-SnippetEnd
 -->
 
-### Quick start
+## Quick start
 1. Install dependencies with `npm install`.
 2. Check that the Incus CLI can reach a server with `incus remote list` and `incus info`.
 3. Run `npm run dev`
 4. Open the URL the command prints, for example `http://127.0.0.1:3001/ui/`.
 
-### Choosing the remote
+## Choosing the remote
 The development environment uses the same remote as the `incus` CLI, read from `config.yml` in the Incus config directory (`$INCUS_CONF`, or `~/.config/incus`).
 
 - The CLI default is used by default. Change it with `incus remote switch <name>`.
@@ -35,7 +34,7 @@ The development environment uses the same remote as the `incus` CLI, read from `
 
   `--remote` wins over `INCUS_REMOTE`. If neither is set, the CLI default is used, and `local` when there is no config.
 
-### Environment variables
+## Environment variables
 You can change the behavior of the development environment using the following environment variables:
 
 | Variable | Default | Purpose |
