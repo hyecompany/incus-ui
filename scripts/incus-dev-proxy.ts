@@ -1,11 +1,12 @@
 /// <reference types="node" />
 // SPDX-FileCopyrightText: © 2026 Hye Ararat contributors
+// SPDX-FileCopyrightText: © 2026 Joseph Maldjian <joseph.maldjian@hyecompany.com>
 // SPDX-License-Identifier: Apache-2.0
 
 /**
  * Development proxy for the Incus UI. Serves the Vite app (/ui) and the Incus API of the
  * remote selected in the Incus CLI from one origin. `npm run dev` runs it and also starts
- * the Vite dev server as a child process. See docs/contributing/development-proxy.md.
+ * the Vite dev server as a child process. See docs/contributing/code/development-environment.md.
  */
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -253,7 +254,13 @@ export function resolveUpstream(
 	const upstream: UpstreamOptions = {};
 	const warnings: string[] = [];
 	if (api.protocol === "https:") {
-		upstream.serverCert = readOptional(join(configDir, "servercerts", `${name}.crt`));
+		const serverCertPath = join(configDir, "servercerts", `${name}.crt`);
+		upstream.serverCert = readOptional(serverCertPath);
+		if (upstream.serverCert === undefined) {
+			warnings.push(
+				`No pinned server certificate at ${serverCertPath}. TLS to a self-signed Incus server will fail until this remote is added with the Incus CLI.`,
+			);
+		}
 	}
 
 	if (remote.authType !== "oidc" && !remote.public) {
@@ -408,6 +415,12 @@ function crossOriginIsolationHeaders(): Record<string, string> {
 	};
 }
 
+/** How long to wait for an upstream connect/response before returning 502. */
+function upstreamConnectTimeoutMs(): number {
+	const value = Number(process.env.DEV_PROXY_CONNECT_TIMEOUT_MS || 10_000);
+	return Number.isFinite(value) && value > 0 ? value : 10_000;
+}
+
 function handleHttpRequest(config: ProxyConfig, req: http.IncomingMessage, res: http.ServerResponse) {
 	const { isApi, url: target } = resolveTarget(req.url ?? "/", config.targets);
 	const transport = target.protocol === "https:" ? https : http;
@@ -420,7 +433,10 @@ function handleHttpRequest(config: ProxyConfig, req: http.IncomingMessage, res: 
 		}
 	}
 
+	let settled = false;
 	const upstreamReq = transport.request(target, options, (upstreamRes) => {
+		settled = true;
+		clearTimeout(connectTimer);
 		const responseHeaders: http.OutgoingHttpHeaders = { ...upstreamRes.headers };
 
 		if (!isApi && config.crossOriginIsolation) {
@@ -436,8 +452,16 @@ function handleHttpRequest(config: ProxyConfig, req: http.IncomingMessage, res: 
 		res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.statusMessage, responseHeaders);
 		upstreamRes.pipe(res);
 	});
+	const connectTimer = setTimeout(() => {
+		if (!settled) {
+			upstreamReq.destroy(new Error("upstream connection timed out"));
+		}
+	}, upstreamConnectTimeoutMs());
+	connectTimer.unref?.();
 
 	upstreamReq.on("error", (error) => {
+		settled = true;
+		clearTimeout(connectTimer);
 		if (res.headersSent) {
 			res.destroy();
 			return;
@@ -480,12 +504,36 @@ function handleUpgrade(config: ProxyConfig, req: http.IncomingMessage, socket: D
 		upstream = net.connect({ host: target.hostname, port });
 	}
 
+	let repliedWithError = false;
+	let upstreamReady = false;
+	let lastUpstreamError: Error | undefined;
 	const destroyBoth = () => {
 		socket.destroy();
 		upstream.destroy();
 	};
+	const failUpgrade = (message: string) => {
+		if (upstreamReady || repliedWithError || !socket.writable) {
+			return false;
+		}
+		repliedWithError = true;
+		clearTimeout(connectTimer);
+		socket.end(
+			`HTTP/1.1 502 Bad Gateway\r\ncontent-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\nProxy error: ${message}`,
+		);
+		upstream.destroy();
+		return true;
+	};
+	const connectTimer = setTimeout(() => {
+		failUpgrade("upstream connection timed out");
+	}, upstreamConnectTimeoutMs());
+	connectTimer.unref?.();
 
 	upstream.once(secure ? "secureConnect" : "connect", () => {
+		if (socket.destroyed) {
+			upstream.destroy();
+			return;
+		}
+
 		const hostHeader = socketPath ? "localhost" : target.host;
 		const headerLines = filterUpgradeHeaders(req.headers, isApi).map(([name, value]) => `${name}: ${value}\r\n`);
 		upstream.write(`${req.method} ${req.url} HTTP/1.1\r\nHost: ${hostHeader}\r\n${headerLines.join("")}\r\n`);
@@ -493,20 +541,78 @@ function handleUpgrade(config: ProxyConfig, req: http.IncomingMessage, socket: D
 			upstream.write(head);
 		}
 
-		socket.pipe(upstream);
-		upstream.pipe(socket);
+		// Manual forward instead of pipe(): pipe can swallow peer resets so the other
+		// socket is never destroyed (and the upstream connection leaks). Pause the
+		// source when write() returns false so a slow peer cannot grow an unbounded queue.
+		// upstreamReady flips on the first upstream byte so a TLS handshake that
+		// "connects" then dies (for example missing client cert) can still 502.
+		// The connect timer stays armed until that first byte (or failUpgrade).
+		const forward = (from: Duplex, to: Duplex, onFirstChunk?: () => void) => {
+			from.on("data", (chunk: Buffer) => {
+				onFirstChunk?.();
+				if (to.destroyed) {
+					return;
+				}
+				if (!to.write(chunk) && !from.isPaused()) {
+					from.pause();
+					to.once("drain", () => {
+						if (!from.destroyed) {
+							from.resume();
+						}
+					});
+				}
+			});
+			from.on("end", () => {
+				if (!to.destroyed) {
+					to.end();
+				}
+			});
+			from.on("error", destroyBoth);
+			from.on("close", () => {
+				if (!to.destroyed) {
+					to.destroy();
+				}
+			});
+		};
+		forward(socket, upstream);
+		forward(upstream, socket, () => {
+			upstreamReady = true;
+			clearTimeout(connectTimer);
+		});
 		socket.resume();
 	});
 
 	upstream.on("error", (error) => {
-		if (!upstream.connecting && socket.writable) {
-			socket.write(`HTTP/1.1 502 Bad Gateway\r\ncontent-type: text/plain\r\nconnection: close\r\n\r\nProxy error: ${error.message}`);
+		lastUpstreamError = error;
+		// Only invent an HTTP error before the upgrade is forwarded; after that, tear the sockets down.
+		if (!failUpgrade(error.message)) {
+			destroyBoth();
 		}
-		destroyBoth();
 	});
-	socket.on("error", destroyBoth);
-	socket.on("close", () => upstream.destroy());
-	upstream.on("close", () => socket.destroy());
+	socket.on("error", (error) => {
+		if (!failUpgrade(error.message)) {
+			destroyBoth();
+		}
+	});
+	socket.on("end", () => {
+		if (!upstream.destroyed) {
+			upstream.destroy();
+		}
+	});
+	socket.on("close", () => {
+		if (!upstream.destroyed) {
+			upstream.destroy();
+		}
+	});
+	upstream.on("close", () => {
+		// Some TLS handshake failures close the socket without a prior error event.
+		if (failUpgrade(lastUpstreamError?.message ?? "connection closed")) {
+			return;
+		}
+		if (!repliedWithError && !socket.destroyed) {
+			socket.destroy();
+		}
+	});
 }
 
 /** Plain HTTP server that routes /ui to the Vite app and everything else to the Incus API. */
@@ -521,7 +627,17 @@ export function createDevProxyServer(config: ProxyConfig): http.Server {
 	});
 
 	server.on("upgrade", (req, socket, head) => {
-		handleUpgrade(config, req, socket, head);
+		try {
+			handleUpgrade(config, req, socket, head);
+		} catch (error) {
+			if (!socket.writable) {
+				socket.destroy();
+				return;
+			}
+			socket.end(
+				`HTTP/1.1 502 Bad Gateway\r\ncontent-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\nProxy error: ${error instanceof Error ? error.message : "unknown error"}`,
+			);
+		}
 	});
 
 	return server;

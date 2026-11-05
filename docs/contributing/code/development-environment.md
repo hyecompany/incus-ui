@@ -47,3 +47,11 @@ You can change the behavior of the development environment using the following e
 | `DEV_PROXY_PORT` | `3001` | Port the proxy listens on. This is the URL to open. |
 | `DEV_PROXY_APP_PORT` | `5173` | Port for the Vite dev server started by the proxy. |
 | `DEV_PROXY_CROSS_ORIGIN_ISOLATION` | unset | Set to `1` to send cross-origin isolation headers for the app. |
+<!-- 
+SPDX-SnippetBegin
+SPDX-SnippetCopyrightText: © 2026 Joseph Maldjian <joseph.maldjian@hyecompany.com>
+-->
+| `DEV_PROXY_CONNECT_TIMEOUT_MS` | `10000` | How long the proxy waits for an upstream connect/response before returning `502`. |
+<!-- 
+SPDX-SnippetEnd
+-->
